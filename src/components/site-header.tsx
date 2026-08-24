@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { Heart, Menu, Search, ShoppingBag, X, Home, Store, Grid3x3, Trash2 } from "lucide-react";
-import logo from "@/assets/hemmlock-logo.png.asset.json";
+import { HemmlockLogo } from "@/components/logo";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
 import { formatPrice, products } from "@/data/products";
@@ -52,7 +52,7 @@ export function SiteHeader() {
       >
         <div className="mx-auto grid max-w-[1400px] grid-cols-[auto_1fr_auto] items-center gap-4 px-5 py-3 sm:px-8 lg:px-12">
           <Link to="/" className="flex min-w-0 items-center gap-2.5">
-            <img src={logo.url} alt="HEMMLOCK" width={40} height={40} className="h-9 w-9 shrink-0" />
+            <HemmlockLogo className="h-9 w-9" />
             <span className="display-xl truncate text-xl sm:text-2xl">Hemmlock</span>
           </Link>
 

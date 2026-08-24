@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { Instagram, Facebook, Youtube } from "lucide-react";
-import logo from "@/assets/hemmlock-logo.png.asset.json";
+import { HemmlockLogo } from "@/components/logo";
 
 const columns = [
   {
@@ -29,7 +29,7 @@ export function SiteFooter() {
         <div className="grid gap-12 lg:grid-cols-[1.4fr_1fr_1fr_1fr]">
           <div className="max-w-sm">
             <div className="flex items-center gap-3">
-              <img src={logo.url} alt="HEMMLOCK" width={44} height={44} className="h-11 w-11" />
+              <HemmlockLogo className="h-10 w-10" />
               <span className="display-xl text-2xl">Hemmlock</span>
             </div>
             <p className="mt-5 text-sm leading-relaxed text-ink-foreground/65">

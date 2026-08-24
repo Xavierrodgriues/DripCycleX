@@ -81,9 +81,9 @@ export function ProductCard({ product }: { product: Product }) {
               slug: product.slug,
               name: product.name,
               price: product.price,
-              image: product.images[0],
-              size: product.sizes[Math.floor(product.sizes.length / 2)],
-              color: product.colors[0].name,
+              image: product.images[0] ?? "",
+              size: product.sizes[Math.floor(product.sizes.length / 2)] ?? product.sizes[0] ?? "",
+              color: product.colors[0]?.name ?? "",
               qty: 1,
             });
             toast.success("Added to bag", { description: product.name });
