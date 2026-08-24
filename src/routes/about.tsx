@@ -11,7 +11,7 @@ export const Route = createFileRoute("/about")({
   component: AboutPage,
 });
 
-export function AboutPage() {
+function AboutPage() {
   return (
     <div className="bg-background pb-20">
       {/* Hero Header */}

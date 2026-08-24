@@ -11,7 +11,7 @@ export const Route = createFileRoute("/stores")({
   component: StoresPage,
 });
 
-export function StoresPage() {
+function StoresPage() {
   const [selectedCity, setSelectedCity] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 

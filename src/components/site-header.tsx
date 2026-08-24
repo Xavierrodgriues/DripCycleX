@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { Heart, Menu, Search, ShoppingBag, X, Home, Store, Grid3x3, Trash2 } from "lucide-react";
 import { HemmlockLogo } from "@/components/logo";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetClose } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
 import { formatPrice, products } from "@/data/products";
 import { useShop } from "@/lib/shop-store";
@@ -233,42 +233,162 @@ export function SiteHeader() {
               </SheetContent>
             </Sheet>
 
-            <button
-              aria-label="Menu"
-              onClick={() => setMenuOpen(true)}
-              className="grid h-10 w-10 place-items-center lg:hidden"
-            >
-              <Menu className="h-5 w-5" />
-            </button>
-          </div>
-        </div>
-
-        {/* Mobile drawer */}
-        <div
-          className={cn(
-            "fixed inset-0 z-50 bg-background transition-opacity duration-300 lg:hidden",
-            menuOpen ? "opacity-100" : "pointer-events-none opacity-0",
-          )}
-        >
-          <div className="flex items-center justify-between px-5 py-4">
-            <span className="display-xl text-2xl">Menu</span>
-            <button aria-label="Close menu" onClick={() => setMenuOpen(false)}>
-              <X className="h-6 w-6" />
-            </button>
-          </div>
-          <nav className="flex flex-col px-5">
-            {[...NAV, { label: "Contact", to: "/contact" as const, search: undefined }].map((item) => (
-              <Link
-                key={item.label}
-                to={item.to}
-                search={item.search as never}
-                onClick={() => setMenuOpen(false)}
-                className="display-xl border-b py-5 text-3xl"
+            {/* Mobile Hamburger Menu */}
+            <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
+              <SheetTrigger asChild>
+                <button
+                  aria-label="Open navigation menu"
+                  className="grid h-10 w-10 place-items-center rounded-lg lg:hidden transition-all hover:bg-accent active:scale-95"
+                >
+                  <Menu className="h-6 w-6 text-foreground" />
+                </button>
+              </SheetTrigger>
+              <SheetContent
+                side="full"
+                hideCloseButton
+                className="fixed inset-0 z-[100] flex h-full h-dvh w-full w-screen max-w-none flex-col justify-between border-none bg-white p-0 text-slate-900 shadow-2xl overflow-y-auto"
               >
-                {item.label}
-              </Link>
-            ))}
-          </nav>
+                {/* Full-screen Navbar Header */}
+                <div className="sticky top-0 z-20 flex items-center justify-between border-b border-slate-100 bg-white/95 px-5 py-4 backdrop-blur-md sm:px-8">
+                  <Link
+                    to="/"
+                    onClick={() => setMenuOpen(false)}
+                    className="flex items-center gap-2.5"
+                  >
+                    <HemmlockLogo className="h-8 w-8 text-primary" />
+                    <span className="display-xl text-2xl font-bold tracking-tight text-slate-900">
+                      Hemmlock
+                    </span>
+                  </Link>
+                  <SheetClose asChild>
+                    <button
+                      aria-label="Close navigation menu"
+                      className="grid h-10 w-10 place-items-center rounded-full bg-slate-100 text-slate-900 transition-colors hover:bg-slate-200 active:scale-95"
+                    >
+                      <X className="h-5 w-5" />
+                    </button>
+                  </SheetClose>
+                </div>
+
+                {/* Full-screen Navbar Main Content */}
+                <div className="flex-1 space-y-6 overflow-y-auto px-5 py-6 sm:px-8">
+                  {/* In-Menu Search */}
+                  <div className="relative">
+                    <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                    <Input
+                      value={query}
+                      onChange={(e) => setQuery(e.target.value)}
+                      placeholder="Search shirts, hoodies, denim…"
+                      className="h-11 w-full rounded-lg border border-slate-200 bg-slate-50 pl-10 pr-4 text-sm text-slate-900 placeholder:text-slate-400 focus-visible:bg-white focus-visible:ring-1 focus-visible:ring-primary"
+                    />
+                    {results.length > 0 && (
+                      <ul className="absolute left-0 right-0 top-full z-30 mt-1.5 max-h-56 divide-y divide-slate-100 overflow-y-auto rounded-lg border border-slate-200 bg-white p-2 shadow-xl">
+                        {results.map((p) => (
+                          <li key={p.id}>
+                            <Link
+                              to="/product/$slug"
+                              params={{ slug: p.slug }}
+                              onClick={() => {
+                                setMenuOpen(false);
+                                setQuery("");
+                              }}
+                              className="flex items-center gap-3 rounded-md p-2 transition-colors hover:bg-slate-50"
+                            >
+                              <img
+                                src={p.images[0]}
+                                alt=""
+                                className="h-12 w-10 rounded object-cover"
+                              />
+                              <div className="min-w-0 flex-1">
+                                <p className="truncate text-xs font-semibold text-slate-900">
+                                  {p.name}
+                                </p>
+                                <p className="text-xs text-slate-500">{formatPrice(p.price)}</p>
+                              </div>
+                            </Link>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+
+                  {/* Navigation Links */}
+                  <nav className="flex flex-col divide-y divide-slate-100">
+                    {[
+                      ...NAV,
+                      { label: "Contact", to: "/contact" as const, search: undefined },
+                    ].map((item) => (
+                      <Link
+                        key={item.label}
+                        to={item.to}
+                        search={item.search as never}
+                        onClick={() => setMenuOpen(false)}
+                        className="group flex items-center justify-between py-4 text-2xl sm:text-3xl display-xl font-black uppercase tracking-tight text-slate-900 transition-colors hover:text-primary"
+                      >
+                        <span>{item.label}</span>
+                        <span className="text-xs font-medium uppercase tracking-widest text-slate-400 transition-colors group-hover:text-primary">
+                          Explore →
+                        </span>
+                      </Link>
+                    ))}
+                  </nav>
+
+                  {/* Quick Action Cards */}
+                  <div className="grid grid-cols-2 gap-3 pt-2">
+                    <Sheet>
+                      <SheetTrigger asChild>
+                        <button
+                          onClick={() => setMenuOpen(false)}
+                          className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 p-3.5 text-slate-900 transition-all hover:bg-slate-100 active:scale-98"
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <Heart className="h-4 w-4 text-primary" />
+                            <span className="text-xs font-bold uppercase tracking-wider">
+                              Wishlist
+                            </span>
+                          </div>
+                          {wishlist.length > 0 && (
+                            <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-white">
+                              {wishlist.length}
+                            </span>
+                          )}
+                        </button>
+                      </SheetTrigger>
+                    </Sheet>
+
+                    <Sheet>
+                      <SheetTrigger asChild>
+                        <button
+                          onClick={() => setMenuOpen(false)}
+                          className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 p-3.5 text-slate-900 transition-all hover:bg-slate-100 active:scale-98"
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <ShoppingBag className="h-4 w-4 text-primary" />
+                            <span className="text-xs font-bold uppercase tracking-wider">Bag</span>
+                          </div>
+                          {cartCount > 0 && (
+                            <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-white">
+                              {cartCount}
+                            </span>
+                          )}
+                        </button>
+                      </SheetTrigger>
+                    </Sheet>
+                  </div>
+                </div>
+
+                {/* Footer Announcement Bar inside Navbar */}
+                <div className="border-t border-slate-100 bg-slate-50 px-5 py-4 text-center sm:px-8">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-700">
+                    Free shipping on orders above ₹1999 · 15-day returns
+                  </p>
+                  <p className="mt-1 text-[10px] font-medium text-slate-400">
+                    HEMMLOCK Premium Menswear India
+                  </p>
+                </div>
+              </SheetContent>
+            </Sheet>
+          </div>
         </div>
       </header>
 
