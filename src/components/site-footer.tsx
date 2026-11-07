@@ -1,60 +1,66 @@
 import { Link } from "@tanstack/react-router";
 import { Instagram, Facebook, Youtube } from "lucide-react";
-import { HemmlockLogo } from "@/components/logo";
+import { DripcycleXLogo } from "@/components/logo";
 
 const columns = [
   {
-    title: "Shop",
+    title: "The Drop",
     links: [
-      { label: "All Men", to: "/shop" as const },
-      { label: "Shirts", to: "/shop" as const },
-      { label: "T-Shirts", to: "/shop" as const },
-      { label: "Jeans", to: "/shop" as const },
+      { label: "Trinity Drop Showcase", to: "/shop" as const },
+      { label: "Heavyweight Tees", to: "/shop" as const, search: { category: "T-Shirts" } },
+      { label: "Signature Hoodies", to: "/shop" as const, search: { category: "Hoodies" } },
+      { label: "Matte Bombers", to: "/shop" as const, search: { category: "Jackets" } },
     ],
   },
   {
     title: "Brand",
     links: [
-      { label: "About HEMMLOCK", to: "/about" as const },
-      { label: "Stores", to: "/stores" as const },
-      { label: "Contact", to: "/contact" as const },
+      { label: "About DRIPCYCLEX", to: "/about" as const },
+      { label: "Philosophy & Craft", to: "/about" as const },
+      { label: "Client Support", to: "/contact" as const },
     ],
   },
 ];
 
 export function SiteFooter() {
   return (
-    <footer className="mt-24 bg-ink text-ink-foreground">
+    <footer className="mt-24 border-t border-white/10 bg-black text-white">
       <div className="mx-auto max-w-[1400px] px-5 py-16 sm:px-8 lg:px-12">
         <div className="grid gap-12 lg:grid-cols-[1.4fr_1fr_1fr_1fr]">
           <div className="max-w-sm">
-            <div className="flex items-center gap-3">
-              <HemmlockLogo className="h-10 w-10" />
-              <span className="display-xl text-2xl">Hemmlock</span>
+            <div className="flex items-center gap-3.5">
+              <DripcycleXLogo className="h-14 w-14 sm:h-16 sm:w-16" />
+              <span className="display-xl text-2xl sm:text-3xl font-black tracking-wider text-white">
+                DRIPCYCLE<span className="text-red-500">X</span>
+              </span>
             </div>
-            <p className="mt-5 text-sm leading-relaxed text-ink-foreground/65">
-              Menswear built in India for people who dress with intent. Considered fits, honest
-              fabric, no filler.
+            <p className="mt-5 text-sm leading-relaxed text-zinc-400">
+              Dark luxury streetwear engineered in India. Built for those who dress with architectural intent. Heavyweight cottons, custom trims, zero filler. 100% Direct-to-Consumer Online Exclusive.
             </p>
             <div className="mt-6 flex gap-3">
               {[Instagram, Facebook, Youtube].map((Icon, i) => (
-                <span
+                <a
                   key={i}
-                  className="grid h-10 w-10 place-items-center border border-ink-foreground/20 transition-colors hover:border-primary hover:bg-primary"
+                  href="#"
+                  className="grid h-10 w-10 place-items-center border border-white/15 bg-white/5 text-zinc-300 transition-colors hover:border-white hover:bg-white hover:text-black"
                 >
                   <Icon className="h-4 w-4" />
-                </span>
+                </a>
               ))}
             </div>
           </div>
 
           {columns.map((col) => (
             <div key={col.title}>
-              <p className="eyebrow text-primary">{col.title}</p>
-              <ul className="mt-5 space-y-3 text-sm text-ink-foreground/70">
+              <p className="eyebrow text-white font-bold">{col.title}</p>
+              <ul className="mt-5 space-y-3 text-sm text-zinc-400">
                 {col.links.map((l) => (
                   <li key={l.label}>
-                    <Link to={l.to} className="transition-colors hover:text-ink-foreground">
+                    <Link
+                      to={l.to}
+                      search={("search" in l ? l.search : undefined) as never}
+                      className="transition-colors hover:text-white"
+                    >
                       {l.label}
                     </Link>
                   </li>
@@ -64,18 +70,31 @@ export function SiteFooter() {
           ))}
 
           <div>
-            <p className="eyebrow text-primary">Support</p>
-            <ul className="mt-5 space-y-3 text-sm text-ink-foreground/70">
-              <li>care@hemmlock.in</li>
-              <li>+91 98200 41120</li>
+            <p className="eyebrow text-white font-bold">Client Support</p>
+            <ul className="mt-5 space-y-3 text-sm text-zinc-400">
+              <li>
+                <a href="mailto:Dripcyclex@gmail.com" className="text-white font-semibold hover:underline">
+                  Dripcyclex@gmail.com
+                </a>
+              </li>
+              <li>
+                <a href="tel:+918469711940" className="hover:text-white transition-colors">
+                  +91 84697 11940
+                </a>
+              </li>
               <li>Mon – Sat, 10 AM – 7 PM IST</li>
+              <li className="text-xs text-zinc-500 pt-2">Direct Online Dispatch Across India</li>
             </ul>
           </div>
         </div>
 
-        <div className="mt-14 flex flex-col gap-3 border-t border-ink-foreground/15 pt-6 text-xs text-ink-foreground/50 sm:flex-row sm:items-center sm:justify-between">
-          <p>© {new Date().getFullYear()} HEMMLOCK Apparel Pvt. Ltd. All rights reserved.</p>
-          <p>Shipping across India · 15-day easy returns</p>
+        <div className="mt-14 flex flex-col gap-3 border-t border-white/10 pt-6 text-xs text-zinc-500 sm:flex-row sm:items-center sm:justify-between">
+          <p>© {new Date().getFullYear()} DRIPCYCLEX Apparel Pvt. Ltd. All rights reserved.</p>
+          <p className="flex items-center gap-2">
+            <span>Engineered in India</span>
+            <span>•</span>
+            <span>15-day return policy</span>
+          </p>
         </div>
       </div>
     </footer>

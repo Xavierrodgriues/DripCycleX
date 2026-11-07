@@ -2,9 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import {
   ArrowLeft,
-  Check,
   Heart,
-  MapPin,
   Ruler,
   Share2,
   ShieldCheck,
@@ -40,16 +38,16 @@ function ProductDetailsPage() {
 
   if (!product) {
     return (
-      <div className="flex min-h-[60vh] flex-col items-center justify-center px-4 py-20 text-center">
-        <h1 className="display-xl text-4xl">GARMENT NOT FOUND</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          The requested product piece does not exist or has been retired.
+      <div className="flex min-h-[60vh] flex-col items-center justify-center bg-black px-4 py-20 text-center text-white">
+        <h1 className="display-xl text-4xl">SILHOUETTE NOT FOUND</h1>
+        <p className="mt-2 text-sm text-zinc-400">
+          The requested DRIPCYCLEX garment is currently unavailable or archived.
         </p>
         <Link
           to="/shop"
-          className="mt-6 inline-flex items-center gap-2 bg-primary px-6 py-3 text-xs font-bold uppercase tracking-wider text-primary-foreground hover:bg-ink"
+          className="mt-6 inline-flex items-center gap-2 border border-white bg-white px-6 py-3 text-xs font-bold uppercase tracking-wider text-black hover:bg-zinc-200"
         >
-          <ArrowLeft className="h-4 w-4" /> Return to Showcase
+          <ArrowLeft className="h-4 w-4" /> Return to Trinity Drop
         </Link>
       </div>
     );
@@ -61,9 +59,8 @@ function ProductDetailsPage() {
     ? Math.round(((product.compareAtPrice - product.price) / product.compareAtPrice) * 100)
     : null;
 
-  const relatedProducts = products
-    .filter((p) => p.id !== product.id && p.category === product.category)
-    .slice(0, 4);
+  // The other 2 products in the 3-piece Trinity Drop
+  const otherTrinityPieces = products.filter((p) => p.id !== product.id);
 
   const handleAddToCart = () => {
     addToCart({
@@ -88,27 +85,27 @@ function ProductDetailsPage() {
   };
 
   return (
-    <div className="bg-background pb-24">
+    <div className="bg-black text-white pb-24">
       {/* Breadcrumb Navigation */}
-      <div className="border-b bg-surface py-4">
-        <div className="mx-auto flex max-w-[1400px] items-center gap-2 px-5 text-xs text-muted-foreground sm:px-8 lg:px-12">
-          <Link to="/" className="hover:text-primary transition-colors">
-            Home
+      <div className="border-b border-white/10 bg-zinc-950/60 py-4">
+        <div className="mx-auto flex max-w-[1400px] items-center gap-2 px-5 text-xs text-zinc-400 sm:px-8 lg:px-12">
+          <Link to="/" className="hover:text-white transition-colors">
+            Base
           </Link>
           <span>/</span>
-          <Link to="/shop" className="hover:text-primary transition-colors">
-            Shop
+          <Link to="/shop" className="hover:text-white transition-colors">
+            Trinity Drop
           </Link>
           <span>/</span>
           <Link
             to="/shop"
             search={{ category: product.category }}
-            className="hover:text-primary transition-colors"
+            className="hover:text-white transition-colors"
           >
             {product.category}
           </Link>
           <span>/</span>
-          <span className="font-semibold text-foreground truncate">{product.name}</span>
+          <span className="font-semibold text-white truncate">{product.name}</span>
         </div>
       </div>
 
@@ -118,20 +115,18 @@ function ProductDetailsPage() {
           {/* Left Column: Image Gallery */}
           <div className="lg:col-span-7 space-y-4">
             {/* Main Image */}
-            <div className="relative aspect-[3/4] w-full overflow-hidden bg-surface border border-border">
+            <div className="relative aspect-[3/4] w-full overflow-hidden bg-zinc-950 border border-white/10">
               <img
                 src={product.images[selectedImgIndex] ?? product.images[0]}
                 alt={product.name}
                 className="h-full w-full object-cover transition-all duration-500"
               />
-              <div className="absolute top-4 left-4 flex flex-col gap-2">
-                {product.isNew && (
-                  <span className="eyebrow bg-primary px-2.5 py-1 text-primary-foreground font-bold">
-                    New Season
-                  </span>
-                )}
+              <div className="absolute top-4 left-4 flex flex-col gap-2 z-10">
+                <span className="eyebrow bg-white px-2.5 py-1 text-black font-black">
+                  TRINITY DROP
+                </span>
                 {discountPercent && (
-                  <span className="eyebrow bg-ink px-2.5 py-1 text-ink-foreground font-bold">
+                  <span className="eyebrow bg-red-600 px-2.5 py-1 text-white font-black">
                     {discountPercent}% OFF
                   </span>
                 )}
@@ -146,10 +141,10 @@ function ProductDetailsPage() {
                     key={idx}
                     onClick={() => setSelectedImgIndex(idx)}
                     className={cn(
-                      "relative aspect-[3/4] w-20 overflow-hidden border bg-surface transition-all",
+                      "relative aspect-[3/4] w-20 overflow-hidden border bg-zinc-950 transition-all",
                       selectedImgIndex === idx
-                        ? "border-primary ring-2 ring-primary/20"
-                        : "border-border opacity-70 hover:opacity-100",
+                        ? "border-white ring-2 ring-white/30"
+                        : "border-white/15 opacity-60 hover:opacity-100",
                     )}
                   >
                     <img src={img} alt="" className="h-full w-full object-cover" />
@@ -162,53 +157,56 @@ function ProductDetailsPage() {
           {/* Right Column: Product Information & Controls */}
           <div className="lg:col-span-5 flex flex-col space-y-6">
             <div>
-              <span className="eyebrow text-primary">{product.category}</span>
-              <h1 className="display-xl mt-2 text-3xl sm:text-4xl text-foreground">
+              <div className="flex items-center gap-2">
+                <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
+                <span className="eyebrow text-zinc-400 font-bold">{product.category}</span>
+              </div>
+              <h1 className="display-xl mt-2 text-3xl sm:text-4xl text-white">
                 {product.name}
               </h1>
 
               {/* Rating & Reviews */}
               <div className="mt-3 flex items-center gap-3">
-                <div className="flex items-center text-amber-500">
+                <div className="flex items-center text-amber-400">
                   {Array.from({ length: 5 }).map((_, i) => (
                     <Star
                       key={i}
                       className={cn(
                         "h-4 w-4",
                         i < Math.floor(product.rating)
-                          ? "fill-amber-500 text-amber-500"
-                          : "fill-muted text-muted-foreground",
+                          ? "fill-amber-400 text-amber-400"
+                          : "fill-zinc-800 text-zinc-700",
                       )}
                     />
                   ))}
                 </div>
-                <span className="text-xs font-semibold text-foreground">{product.rating}</span>
-                <span className="text-xs text-muted-foreground">({product.reviews} reviews)</span>
+                <span className="text-xs font-bold text-white">{product.rating}</span>
+                <span className="text-xs text-zinc-400">({product.reviews} verified drop reviews)</span>
               </div>
 
               {/* Price Display */}
               <div className="mt-4 flex items-baseline gap-3">
-                <span className="text-2xl sm:text-3xl font-extrabold text-foreground">
+                <span className="text-2xl sm:text-3xl font-black text-white">
                   {formatPrice(product.price)}
                 </span>
                 {product.compareAtPrice && (
-                  <span className="text-base text-muted-foreground line-through">
+                  <span className="text-base text-zinc-500 line-through">
                     {formatPrice(product.compareAtPrice)}
                   </span>
                 )}
-                <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 border border-emerald-200">
-                  Inclusive of all taxes
+                <span className="text-xs font-bold text-emerald-400 bg-emerald-950/60 px-2 py-0.5 border border-emerald-800">
+                  Tax Included
                 </span>
               </div>
             </div>
 
-            <hr className="border-border" />
+            <hr className="border-white/10" />
 
             {/* Color Selector */}
             <div>
               <div className="flex justify-between items-center text-xs mb-3">
-                <span className="font-bold uppercase tracking-wider">
-                  Color: <span className="text-muted-foreground font-normal">{selectedColor}</span>
+                <span className="font-bold uppercase tracking-wider text-white">
+                  Colorway: <span className="text-zinc-400 font-normal">{selectedColor}</span>
                 </span>
               </div>
               <div className="flex flex-wrap gap-3">
@@ -219,14 +217,14 @@ function ProductDetailsPage() {
                       key={color.name}
                       onClick={() => setSelectedColor(color.name)}
                       className={cn(
-                        "group relative flex items-center gap-2 border px-3.5 py-2 text-xs font-semibold uppercase transition-all",
+                        "group relative flex items-center gap-2 border px-3.5 py-2 text-xs font-bold uppercase transition-all",
                         isSelected
-                          ? "border-primary bg-primary/5 text-primary"
-                          : "border-border text-foreground hover:border-foreground",
+                          ? "border-white bg-white/10 text-white"
+                          : "border-white/15 text-zinc-400 hover:border-white/40 hover:text-white",
                       )}
                     >
                       <span
-                        className="h-3.5 w-3.5 rounded-full border border-black/20"
+                        className="h-3.5 w-3.5 rounded-full border border-white/20"
                         style={{ backgroundColor: color.hex }}
                       />
                       <span>{color.name}</span>
@@ -239,64 +237,64 @@ function ProductDetailsPage() {
             {/* Size Selector */}
             <div>
               <div className="flex justify-between items-center text-xs mb-3">
-                <span className="font-bold uppercase tracking-wider">
-                  Select Size: <span className="text-muted-foreground font-normal">{selectedSize}</span>
+                <span className="font-bold uppercase tracking-wider text-white">
+                  Select Size: <span className="text-zinc-400 font-normal">{selectedSize}</span>
                 </span>
                 {/* Size Guide Modal Trigger */}
                 <Dialog>
                   <DialogTrigger asChild>
-                    <button className="flex items-center gap-1 text-xs text-primary hover:underline font-semibold uppercase tracking-wider">
+                    <button className="flex items-center gap-1 text-xs text-zinc-300 hover:text-white font-bold uppercase tracking-wider">
                       <Ruler className="h-3.5 w-3.5" /> Size Guide
                     </button>
                   </DialogTrigger>
-                  <DialogContent className="sm:max-w-lg">
+                  <DialogContent className="sm:max-w-lg bg-zinc-950 border border-white/15 text-white">
                     <DialogHeader>
-                      <DialogTitle className="display-xl text-xl">HEMMLOCK SIZE GUIDE</DialogTitle>
+                      <DialogTitle className="display-xl text-xl text-white">DRIPCYCLEX SIZE GUIDE</DialogTitle>
                     </DialogHeader>
                     <div className="py-4 space-y-4 text-xs">
-                      <p className="text-muted-foreground">
-                        All garments are cut for a modern architectural silhouette. Measurements below are in inches.
+                      <p className="text-zinc-400">
+                        Cut for an architectural drop-shoulder streetwear drape. All measurements are in inches.
                       </p>
-                      <div className="overflow-x-auto border border-border">
+                      <div className="overflow-x-auto border border-white/10">
                         <table className="w-full text-left">
-                          <thead className="bg-surface border-b font-bold uppercase">
+                          <thead className="bg-black border-b border-white/10 font-bold uppercase text-white">
                             <tr>
-                              <th className="p-2.5 border-r">Size</th>
-                              <th className="p-2.5 border-r">Chest</th>
-                              <th className="p-2.5 border-r">Shoulder</th>
+                              <th className="p-2.5 border-r border-white/10">Size</th>
+                              <th className="p-2.5 border-r border-white/10">Chest</th>
+                              <th className="p-2.5 border-r border-white/10">Shoulder</th>
                               <th className="p-2.5">Length</th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y">
+                          <tbody className="divide-y divide-white/10 text-zinc-300">
                             <tr>
-                              <td className="p-2.5 font-bold border-r">S</td>
-                              <td className="p-2.5 border-r">38 - 40"</td>
-                              <td className="p-2.5 border-r">18.5"</td>
-                              <td className="p-2.5">27.5"</td>
+                              <td className="p-2.5 font-bold border-r border-white/10 text-white">S</td>
+                              <td className="p-2.5 border-r border-white/10">40 - 42"</td>
+                              <td className="p-2.5 border-r border-white/10">20.0"</td>
+                              <td className="p-2.5">28.0"</td>
                             </tr>
                             <tr>
-                              <td className="p-2.5 font-bold border-r">M</td>
-                              <td className="p-2.5 border-r">40 - 42"</td>
-                              <td className="p-2.5 border-r">19.5"</td>
-                              <td className="p-2.5">28.5"</td>
+                              <td className="p-2.5 font-bold border-r border-white/10 text-white">M</td>
+                              <td className="p-2.5 border-r border-white/10">42 - 44"</td>
+                              <td className="p-2.5 border-r border-white/10">21.0"</td>
+                              <td className="p-2.5">29.0"</td>
                             </tr>
                             <tr>
-                              <td className="p-2.5 font-bold border-r">L</td>
-                              <td className="p-2.5 border-r">42 - 44"</td>
-                              <td className="p-2.5 border-r">20.5"</td>
-                              <td className="p-2.5">29.5"</td>
+                              <td className="p-2.5 font-bold border-r border-white/10 text-white">L</td>
+                              <td className="p-2.5 border-r border-white/10">44 - 46"</td>
+                              <td className="p-2.5 border-r border-white/10">22.0"</td>
+                              <td className="p-2.5">30.0"</td>
                             </tr>
                             <tr>
-                              <td className="p-2.5 font-bold border-r">XL</td>
-                              <td className="p-2.5 border-r">44 - 46"</td>
-                              <td className="p-2.5 border-r">21.5"</td>
-                              <td className="p-2.5">30.5"</td>
+                              <td className="p-2.5 font-bold border-r border-white/10 text-white">XL</td>
+                              <td className="p-2.5 border-r border-white/10">46 - 48"</td>
+                              <td className="p-2.5 border-r border-white/10">23.0"</td>
+                              <td className="p-2.5">31.0"</td>
                             </tr>
                             <tr>
-                              <td className="p-2.5 font-bold border-r">XXL</td>
-                              <td className="p-2.5 border-r">46 - 48"</td>
-                              <td className="p-2.5 border-r">22.5"</td>
-                              <td className="p-2.5">31.5"</td>
+                              <td className="p-2.5 font-bold border-r border-white/10 text-white">XXL</td>
+                              <td className="p-2.5 border-r border-white/10">48 - 50"</td>
+                              <td className="p-2.5 border-r border-white/10">24.0"</td>
+                              <td className="p-2.5">32.0"</td>
                             </tr>
                           </tbody>
                         </table>
@@ -314,10 +312,10 @@ function ProductDetailsPage() {
                       key={sz}
                       onClick={() => setSelectedSize(sz)}
                       className={cn(
-                        "py-3 text-xs font-bold uppercase tracking-wider border transition-all",
+                        "py-3 text-xs font-black uppercase tracking-wider border transition-all",
                         isSelected
-                          ? "border-primary bg-primary text-primary-foreground shadow-sm"
-                          : "border-border text-foreground hover:border-foreground",
+                          ? "border-white bg-white text-black shadow-lg"
+                          : "border-white/15 text-zinc-300 hover:border-white/40 hover:text-white",
                       )}
                     >
                       {sz}
@@ -329,18 +327,18 @@ function ProductDetailsPage() {
 
             {/* Quantity Selector */}
             <div>
-              <span className="text-xs font-bold uppercase tracking-wider block mb-2">Quantity:</span>
-              <div className="inline-flex items-center border border-border">
+              <span className="text-xs font-bold uppercase tracking-wider block mb-2 text-white">Quantity:</span>
+              <div className="inline-flex items-center border border-white/20 bg-zinc-950">
                 <button
                   onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                  className="px-4 py-2 text-sm font-bold transition-colors hover:bg-surface"
+                  className="px-4 py-2 text-sm font-bold text-zinc-300 hover:text-white transition-colors"
                 >
                   −
                 </button>
-                <span className="w-12 text-center text-sm font-semibold">{quantity}</span>
+                <span className="w-12 text-center text-sm font-black text-white">{quantity}</span>
                 <button
                   onClick={() => setQuantity((q) => q + 1)}
-                  className="px-4 py-2 text-sm font-bold transition-colors hover:bg-surface"
+                  className="px-4 py-2 text-sm font-bold text-zinc-300 hover:text-white transition-colors"
                 >
                   +
                 </button>
@@ -351,7 +349,7 @@ function ProductDetailsPage() {
             <div className="flex gap-3 pt-2">
               <button
                 onClick={handleAddToCart}
-                className="flex-1 inline-flex items-center justify-center gap-2 bg-primary py-4 text-xs font-bold uppercase tracking-[0.18em] text-primary-foreground shadow-md transition-all hover:bg-ink hover:text-white"
+                className="flex-1 inline-flex items-center justify-center gap-2 border border-white bg-white py-4 text-xs font-black uppercase tracking-[0.2em] text-black shadow-md transition-all hover:bg-zinc-200"
               >
                 <ShoppingBag className="h-4 w-4" /> Add to Bag
               </button>
@@ -359,59 +357,59 @@ function ProductDetailsPage() {
               <button
                 onClick={() => {
                   toggleWishlist(product.slug);
-                  toast(wished ? "Removed from Wishlist" : "Saved to Wishlist");
+                  toast(wished ? "Removed from archive" : "Saved to archive");
                 }}
                 aria-label="Wishlist"
-                className="grid h-13 w-13 shrink-0 place-items-center border border-border bg-background transition-colors hover:border-primary hover:text-primary"
+                className="grid h-13 w-13 shrink-0 place-items-center border border-white/20 bg-black text-white transition-colors hover:border-white"
               >
-                <Heart className={cn("h-5 w-5", wished && "fill-primary text-primary")} />
+                <Heart className={cn("h-5 w-5", wished && "fill-red-500 text-red-500")} />
               </button>
 
               <button
                 onClick={handleShare}
                 aria-label="Share"
-                className="grid h-13 w-13 shrink-0 place-items-center border border-border bg-background transition-colors hover:border-primary hover:text-primary"
+                className="grid h-13 w-13 shrink-0 place-items-center border border-white/20 bg-black text-white transition-colors hover:border-white"
               >
                 <Share2 className="h-5 w-5" />
               </button>
             </div>
 
-            {/* Retail Store Inquiry Banner */}
-            <div className="border border-primary/20 bg-primary/5 p-4 flex items-center justify-between">
+            {/* Direct Online Dispatch Banner */}
+            <div className="border border-white/10 bg-zinc-950 p-4 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <MapPin className="h-5 w-5 text-primary shrink-0" />
+                <Truck className="h-5 w-5 text-white shrink-0" />
                 <div>
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-foreground">
-                    Try on at a Flagship Store
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-white">
+                    Direct-To-Consumer Dispatch
                   </h4>
-                  <p className="text-xs text-muted-foreground">Available in Mumbai, Bengaluru, Delhi & 5 more cities</p>
+                  <p className="text-xs text-zinc-400">Dispatched within 24 hours · Priority express pan-India</p>
                 </div>
               </div>
-              <button
-                onClick={() => navigate({ to: "/stores" })}
-                className="text-xs font-bold uppercase tracking-wider text-primary hover:underline shrink-0 ml-2"
+              <Link
+                to="/contact"
+                className="text-xs font-bold uppercase tracking-wider text-white hover:underline shrink-0 ml-2"
               >
-                View Stores
-              </button>
+                Fit Assistance
+              </Link>
             </div>
 
             {/* Guarantees List */}
-            <div className="space-y-2 text-xs text-muted-foreground pt-2">
+            <div className="space-y-2 text-xs text-zinc-400 pt-2">
               <div className="flex items-center gap-2">
-                <Truck className="h-4 w-4 text-primary" />
-                <span>Free shipping across India on orders over ₹1999</span>
+                <Truck className="h-4 w-4 text-white" />
+                <span>Complimentary express delivery across India over ₹1999</span>
               </div>
               <div className="flex items-center gap-2">
-                <ShieldCheck className="h-4 w-4 text-primary" />
-                <span>15-Day easy exchange & return policy</span>
+                <ShieldCheck className="h-4 w-4 text-white" />
+                <span>15-Day hassle-free return or size exchange</span>
               </div>
             </div>
 
-            <hr className="border-border" />
+            <hr className="border-white/10" />
 
             {/* Accordion / Tabs: Description, Fabric & Care */}
             <div>
-              <div className="flex border-b border-border">
+              <div className="flex border-b border-white/10">
                 {(["description", "fabric", "care"] as const).map((tab) => (
                   <button
                     key={tab}
@@ -419,8 +417,8 @@ function ProductDetailsPage() {
                     className={cn(
                       "py-3 px-4 text-xs font-bold uppercase tracking-wider border-b-2 transition-colors -mb-px",
                       activeTab === tab
-                        ? "border-primary text-primary"
-                        : "border-transparent text-muted-foreground hover:text-foreground",
+                        ? "border-white text-white"
+                        : "border-transparent text-zinc-500 hover:text-zinc-300",
                     )}
                   >
                     {tab}
@@ -428,7 +426,7 @@ function ProductDetailsPage() {
                 ))}
               </div>
 
-              <div className="py-4 text-sm text-muted-foreground leading-relaxed">
+              <div className="py-4 text-sm text-zinc-300 leading-relaxed">
                 {activeTab === "description" && (
                   <p>{product.description}</p>
                 )}
@@ -436,16 +434,16 @@ function ProductDetailsPage() {
                 {activeTab === "fabric" && (
                   <div className="space-y-2">
                     <p>
-                      <strong className="text-foreground">Specification:</strong> {product.fabric}
+                      <strong className="text-white">Specification:</strong> {product.fabric}
                     </p>
-                    <p>
-                      Sourced directly from verified mills with double-combed thread structure for high resistance to pilling and shape degradation over repeated wear cycles.
+                    <p className="text-zinc-400 text-xs">
+                      Custom milled in Tamil Nadu & Maharashtra with reinforced high-twist yarns for structural shape retention and fade resistance.
                     </p>
                   </div>
                 )}
 
                 {activeTab === "care" && (
-                  <ul className="space-y-1.5 list-disc list-inside">
+                  <ul className="space-y-1.5 list-disc list-inside text-xs text-zinc-400">
                     {product.care.map((item, i) => (
                       <li key={i}>{item}</li>
                     ))}
@@ -456,25 +454,28 @@ function ProductDetailsPage() {
           </div>
         </div>
 
-        {/* Related Garments Section */}
-        {relatedProducts.length > 0 && (
-          <div className="mt-24 border-t pt-16">
+        {/* Complete the Trinity Capsule (The Other 2 Pieces) */}
+        {otherTrinityPieces.length > 0 && (
+          <div className="mt-24 border-t border-white/10 pt-16">
             <div className="flex items-end justify-between mb-8">
               <div>
-                <span className="eyebrow text-primary">Matching Silhouettes</span>
-                <h2 className="display-xl mt-1 text-2xl sm:text-4xl">YOU MAY ALSO LIKE</h2>
+                <span className="eyebrow text-zinc-400 font-bold">COMPLETE THE CAPSULE</span>
+                <h2 className="display-xl mt-1 text-2xl sm:text-4xl text-white">OTHER TRINITY PIECES</h2>
               </div>
               <Link
                 to="/shop"
-                search={{ category: product.category }}
-                className="text-xs font-bold uppercase tracking-wider text-primary hover:underline"
+                className="text-xs font-bold uppercase tracking-wider text-white hover:underline"
               >
-                View Category Showcase →
+                View Full Drop →
               </Link>
             </div>
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-              {relatedProducts.map((p) => (
-                <ProductCard key={p.id} product={p} />
+            <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
+              {otherTrinityPieces.map((p, idx) => (
+                <ProductCard
+                  key={p.id}
+                  product={p}
+                  badgeNumber={`0${idx + 1} / 02 OTHER`}
+                />
               ))}
             </div>
           </div>

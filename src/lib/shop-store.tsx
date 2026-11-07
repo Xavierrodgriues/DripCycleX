@@ -24,8 +24,8 @@ type ShopState = {
 
 const ShopContext = createContext<ShopState | null>(null);
 
-const CART_KEY = "hemmlock.cart";
-const WISH_KEY = "hemmlock.wishlist";
+const CART_KEY = "dripcyclex.cart";
+const WISH_KEY = "dripcyclex.wishlist";
 
 export function ShopProvider({ children }: { children: ReactNode }) {
   const [cart, setCart] = useState<CartLine[]>([]);
@@ -33,8 +33,8 @@ export function ShopProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     try {
-      const c = localStorage.getItem(CART_KEY);
-      const w = localStorage.getItem(WISH_KEY);
+      const c = localStorage.getItem(CART_KEY) || localStorage.getItem("hemmlock.cart");
+      const w = localStorage.getItem(WISH_KEY) || localStorage.getItem("hemmlock.wishlist");
       if (c) setCart(JSON.parse(c));
       if (w) setWishlist(JSON.parse(w));
     } catch {

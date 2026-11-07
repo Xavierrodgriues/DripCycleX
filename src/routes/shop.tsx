@@ -23,12 +23,10 @@ export const Route = createFileRoute("/shop")({
 });
 
 const ALL_COLORS = [
-  { name: "Black", hex: "#111111" },
-  { name: "White", hex: "#ffffff" },
-  { name: "Signal Red", hex: "#e01020" },
-  { name: "Charcoal", hex: "#3a3a3d" },
-  { name: "Sand", hex: "#dccbb0" },
-  { name: "Indigo", hex: "#20304f" },
+  { name: "Pitch Black", hex: "#0a0a0a" },
+  { name: "Ice White", hex: "#f5f5f5" },
+  { name: "Shadow Charcoal", hex: "#27272a" },
+  { name: "Crimson Red", hex: "#ef233c" },
 ];
 
 function ShopPage() {
@@ -122,18 +120,18 @@ function ShopPage() {
     <div className="space-y-8">
       {/* Categories */}
       <div>
-        <h3 className="eyebrow text-foreground mb-4">Categories</h3>
+        <h3 className="eyebrow text-white mb-4">Silhouettes</h3>
         <ul className="space-y-2 text-sm">
           <li>
             <button
               onClick={() => updateFilters({ category: undefined })}
               className={cn(
                 "w-full text-left py-1 transition-colors flex justify-between items-center",
-                !selectedCategory ? "font-bold text-primary" : "text-muted-foreground hover:text-foreground",
+                !selectedCategory ? "font-bold text-white" : "text-zinc-400 hover:text-white",
               )}
             >
-              <span>All Garments</span>
-              <span className="text-xs">{products.length}</span>
+              <span>The Full Capsule</span>
+              <span className="text-xs bg-white/10 px-1.5 py-0.5 rounded text-white">{products.length}</span>
             </button>
           </li>
           {CATEGORIES.map((cat) => {
@@ -145,11 +143,11 @@ function ShopPage() {
                   onClick={() => updateFilters({ category: isSelected ? undefined : cat })}
                   className={cn(
                     "w-full text-left py-1 transition-colors flex justify-between items-center",
-                    isSelected ? "font-bold text-primary" : "text-muted-foreground hover:text-foreground",
+                    isSelected ? "font-bold text-white" : "text-zinc-400 hover:text-white",
                   )}
                 >
                   <span>{cat}</span>
-                  <span className="text-xs">{count}</span>
+                  <span className="text-xs bg-white/10 px-1.5 py-0.5 rounded text-white">{count}</span>
                 </button>
               </li>
             );
@@ -158,8 +156,8 @@ function ShopPage() {
       </div>
 
       {/* Colors */}
-      <div className="border-t pt-6">
-        <h3 className="eyebrow text-foreground mb-4">Color</h3>
+      <div className="border-t border-white/10 pt-6">
+        <h3 className="eyebrow text-white mb-4">Colorway</h3>
         <div className="flex flex-wrap gap-2.5">
           {ALL_COLORS.map((c) => {
             const isSelected = selectedColor?.toLowerCase() === c.name.toLowerCase();
@@ -169,8 +167,8 @@ function ShopPage() {
                 title={c.name}
                 onClick={() => updateFilters({ color: isSelected ? undefined : c.name })}
                 className={cn(
-                  "group relative h-8 w-8 rounded-full border border-border flex items-center justify-center transition-transform hover:scale-110",
-                  isSelected && "ring-2 ring-primary ring-offset-2",
+                  "group relative h-8 w-8 rounded-full border border-white/20 flex items-center justify-center transition-transform hover:scale-110",
+                  isSelected && "ring-2 ring-white ring-offset-2 ring-offset-black",
                 )}
                 style={{ backgroundColor: c.hex }}
               >
@@ -178,7 +176,7 @@ function ShopPage() {
                   <span
                     className={cn(
                       "h-2 w-2 rounded-full",
-                      c.name === "White" ? "bg-black" : "bg-white",
+                      c.name === "Ice White" ? "bg-black" : "bg-white",
                     )}
                   />
                 )}
@@ -189,8 +187,8 @@ function ShopPage() {
       </div>
 
       {/* Sizes */}
-      <div className="border-t pt-6">
-        <h3 className="eyebrow text-foreground mb-4">Size</h3>
+      <div className="border-t border-white/10 pt-6">
+        <h3 className="eyebrow text-white mb-4">Fit Size</h3>
         <div className="grid grid-cols-3 gap-2">
           {ALL_SIZES.map((sz) => {
             const isSelected = selectedSize === sz;
@@ -201,8 +199,8 @@ function ShopPage() {
                 className={cn(
                   "py-2 text-xs font-semibold uppercase border transition-colors",
                   isSelected
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "border-border text-muted-foreground hover:border-foreground hover:text-foreground",
+                    ? "border-white bg-white text-black font-bold"
+                    : "border-white/15 text-zinc-400 hover:border-white/40 hover:text-white",
                 )}
               >
                 {sz}
@@ -213,14 +211,14 @@ function ShopPage() {
       </div>
 
       {/* Max Price Filter */}
-      <div className="border-t pt-6">
-        <h3 className="eyebrow text-foreground mb-4">Price Range</h3>
+      <div className="border-t border-white/10 pt-6">
+        <h3 className="eyebrow text-white mb-4">Price Threshold</h3>
         <div className="space-y-2 text-sm">
           {[
-            { label: "All Prices", val: undefined },
-            { label: "Under ₹2,000", val: 2000 },
-            { label: "Under ₹3,000", val: 3000 },
+            { label: "All Drops", val: undefined },
+            { label: "Under ₹2,500", val: 2500 },
             { label: "Under ₹4,000", val: 4000 },
+            { label: "Under ₹6,000", val: 6000 },
           ].map((item) => (
             <button
               key={item.label}
@@ -228,8 +226,8 @@ function ShopPage() {
               className={cn(
                 "block w-full text-left py-1 text-sm transition-colors",
                 maxPrice === item.val
-                  ? "font-bold text-primary"
-                  : "text-muted-foreground hover:text-foreground",
+                  ? "font-bold text-white"
+                  : "text-zinc-400 hover:text-white",
               )}
             >
               {item.label}
@@ -241,25 +239,28 @@ function ShopPage() {
       {activeFilterCount > 0 && (
         <button
           onClick={clearAllFilters}
-          className="w-full flex items-center justify-center gap-2 border border-border py-2.5 text-xs font-bold uppercase tracking-wider text-muted-foreground hover:border-primary hover:text-primary transition-colors"
+          className="w-full flex items-center justify-center gap-2 border border-white/20 bg-white/5 py-2.5 text-xs font-bold uppercase tracking-wider text-zinc-300 hover:border-white hover:text-white hover:bg-white/10 transition-colors"
         >
-          <RotateCcw className="h-3.5 w-3.5" /> Clear All Filters
+          <RotateCcw className="h-3.5 w-3.5" /> Reset Filters
         </button>
       )}
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-background pb-20">
+    <div className="min-h-screen bg-black text-white pb-20">
       {/* Header Banner */}
-      <div className="border-b bg-surface py-12">
+      <div className="border-b border-white/10 bg-zinc-950/70 py-12">
         <div className="mx-auto max-w-[1400px] px-5 sm:px-8 lg:px-12">
-          <span className="eyebrow text-primary">HEMMLOCK CATALOGUE</span>
-          <h1 className="display-xl mt-2 text-4xl sm:text-6xl">
-            {selectedCategory ? `${selectedCategory.toUpperCase()} SHOWCASE` : "FULL MENSWEAR SHOWCASE"}
+          <div className="flex items-center gap-2">
+            <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
+            <span className="eyebrow text-zinc-400 font-bold">DRIPCYCLEX TRINITY CAPSULE</span>
+          </div>
+          <h1 className="display-xl mt-2 text-4xl sm:text-6xl text-white">
+            {selectedCategory ? `${selectedCategory.toUpperCase()} DROP` : "THE 3-PIECE SHOWCASE"}
           </h1>
-          <p className="mt-3 text-sm text-muted-foreground max-w-xl">
-            Explore considered silhouettes, heavyweight combed cotton, bio-washed fleece, and tailored European linen.
+          <p className="mt-3 text-sm text-zinc-400 max-w-xl">
+            A pure architectural study in black & white. Three cornerstone pieces: Heavyweight Cyber Tee, Signature Stealth Hoodie, and Tactical Matte Bomber.
           </p>
         </div>
       </div>
@@ -267,18 +268,18 @@ function ShopPage() {
       {/* Main Container */}
       <div className="mx-auto max-w-[1400px] px-5 py-10 sm:px-8 lg:px-12">
         {/* Controls Bar */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-6">
           <div className="flex items-center gap-3">
             {/* Mobile Filter Trigger */}
             <Sheet open={mobileFilterOpen} onOpenChange={setMobileFilterOpen}>
               <SheetTrigger asChild>
-                <button className="flex items-center gap-2 border border-border px-4 py-2.5 text-xs font-bold uppercase tracking-wider lg:hidden hover:border-primary">
+                <button className="flex items-center gap-2 border border-white/20 bg-white/5 px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-white lg:hidden hover:border-white">
                   <Filter className="h-4 w-4" /> Filters ({activeFilterCount})
                 </button>
               </SheetTrigger>
-              <SheetContent side="left" className="w-full max-w-xs overflow-y-auto">
-                <SheetHeader className="border-b pb-4">
-                  <SheetTitle className="display-xl text-xl">Filters</SheetTitle>
+              <SheetContent side="left" className="w-full max-w-xs overflow-y-auto bg-zinc-950 border-r border-white/10 text-white">
+                <SheetHeader className="border-b border-white/10 pb-4">
+                  <SheetTitle className="display-xl text-xl text-white">CAPSULE FILTERS</SheetTitle>
                 </SheetHeader>
                 <div className="py-6">
                   <FilterSidebar />
@@ -286,23 +287,22 @@ function ShopPage() {
               </SheetContent>
             </Sheet>
 
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-widest">
-              Showing {filteredProducts.length} of {products.length} Garments
+            <span className="text-xs font-medium text-zinc-400 uppercase tracking-widest">
+              Showing {filteredProducts.length} of {products.length} Trinity Pieces
             </span>
           </div>
 
           {/* Sort Selector */}
           <div className="flex items-center gap-2">
-            <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground shrink-0">
+            <span className="text-xs font-bold uppercase tracking-widest text-zinc-400 shrink-0">
               Sort By:
             </span>
             <select
               value={selectedSort}
               onChange={(e) => updateFilters({ sort: e.target.value as never })}
-              className="h-10 border border-border bg-background px-3 text-xs font-semibold uppercase tracking-wider focus:outline-none focus:border-primary"
+              className="h-10 border border-white/20 bg-zinc-950 px-3 text-xs font-bold uppercase tracking-wider text-white focus:outline-none focus:border-white"
             >
-              <option value="featured">Featured Showcase</option>
-              <option value="new">Newest Drops</option>
+              <option value="featured">Capsule Sequence</option>
               <option value="price-asc">Price: Low to High</option>
               <option value="price-desc">Price: High to Low</option>
               <option value="rating">Highest Rated</option>
@@ -313,55 +313,55 @@ function ShopPage() {
         {/* Active Filter Chips */}
         {activeFilterCount > 0 && (
           <div className="flex flex-wrap items-center gap-2 pt-4">
-            <span className="text-xs text-muted-foreground mr-1">Active filters:</span>
+            <span className="text-xs text-zinc-500 mr-1">Active filters:</span>
             {selectedCategory && (
-              <span className="inline-flex items-center gap-1.5 bg-primary/10 text-primary px-3 py-1 text-xs font-semibold uppercase">
+              <span className="inline-flex items-center gap-1.5 border border-white/20 bg-white/10 text-white px-3 py-1 text-xs font-semibold uppercase">
                 {selectedCategory}
                 <X
-                  className="h-3.5 w-3.5 cursor-pointer hover:opacity-75"
+                  className="h-3.5 w-3.5 cursor-pointer hover:text-red-400"
                   onClick={() => updateFilters({ category: undefined })}
                 />
               </span>
             )}
             {selectedColor && (
-              <span className="inline-flex items-center gap-1.5 bg-primary/10 text-primary px-3 py-1 text-xs font-semibold uppercase">
+              <span className="inline-flex items-center gap-1.5 border border-white/20 bg-white/10 text-white px-3 py-1 text-xs font-semibold uppercase">
                 {selectedColor}
                 <X
-                  className="h-3.5 w-3.5 cursor-pointer hover:opacity-75"
+                  className="h-3.5 w-3.5 cursor-pointer hover:text-red-400"
                   onClick={() => updateFilters({ color: undefined })}
                 />
               </span>
             )}
             {selectedSize && (
-              <span className="inline-flex items-center gap-1.5 bg-primary/10 text-primary px-3 py-1 text-xs font-semibold uppercase">
+              <span className="inline-flex items-center gap-1.5 border border-white/20 bg-white/10 text-white px-3 py-1 text-xs font-semibold uppercase">
                 Size {selectedSize}
                 <X
-                  className="h-3.5 w-3.5 cursor-pointer hover:opacity-75"
+                  className="h-3.5 w-3.5 cursor-pointer hover:text-red-400"
                   onClick={() => updateFilters({ size: undefined })}
                 />
               </span>
             )}
             {maxPrice && (
-              <span className="inline-flex items-center gap-1.5 bg-primary/10 text-primary px-3 py-1 text-xs font-semibold uppercase">
+              <span className="inline-flex items-center gap-1.5 border border-white/20 bg-white/10 text-white px-3 py-1 text-xs font-semibold uppercase">
                 Under ₹{maxPrice}
                 <X
-                  className="h-3.5 w-3.5 cursor-pointer hover:opacity-75"
+                  className="h-3.5 w-3.5 cursor-pointer hover:text-red-400"
                   onClick={() => updateFilters({ maxPrice: undefined })}
                 />
               </span>
             )}
             {searchQuery && (
-              <span className="inline-flex items-center gap-1.5 bg-primary/10 text-primary px-3 py-1 text-xs font-semibold uppercase">
+              <span className="inline-flex items-center gap-1.5 border border-white/20 bg-white/10 text-white px-3 py-1 text-xs font-semibold uppercase">
                 "{searchQuery}"
                 <X
-                  className="h-3.5 w-3.5 cursor-pointer hover:opacity-75"
+                  className="h-3.5 w-3.5 cursor-pointer hover:text-red-400"
                   onClick={() => updateFilters({ search: undefined })}
                 />
               </span>
             )}
             <button
               onClick={clearAllFilters}
-              className="text-xs font-semibold text-muted-foreground hover:text-primary underline ml-2"
+              className="text-xs font-semibold text-zinc-400 hover:text-white underline ml-2"
             >
               Reset
             </button>
@@ -375,26 +375,30 @@ function ShopPage() {
             <FilterSidebar />
           </aside>
 
-          {/* Product Grid */}
+          {/* Product Grid: 3-column layout */}
           <main>
             {filteredProducts.length > 0 ? (
-              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                {filteredProducts.map((product) => (
-                  <ProductCard key={product.id} product={product} />
+              <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
+                {filteredProducts.map((product, idx) => (
+                  <ProductCard
+                    key={product.id}
+                    product={product}
+                    badgeNumber={`0${idx + 1} / 03`}
+                  />
                 ))}
               </div>
             ) : (
-              <div className="py-20 text-center border border-dashed border-border bg-surface px-4">
-                <SlidersHorizontal className="mx-auto h-10 w-10 text-muted-foreground/60" />
-                <h3 className="display-xl mt-4 text-xl">No Garments Match Your Filters</h3>
-                <p className="mt-2 text-sm text-muted-foreground max-w-sm mx-auto">
-                  Try clearing some of your filter criteria or explore our full collection.
+              <div className="py-20 text-center border border-dashed border-white/20 bg-zinc-950 p-8">
+                <SlidersHorizontal className="mx-auto h-10 w-10 text-zinc-600" />
+                <h3 className="display-xl mt-4 text-xl text-white">No Pieces Match This Query</h3>
+                <p className="mt-2 text-sm text-zinc-400 max-w-sm mx-auto">
+                  Try broadening your filter criteria or view the full Trinity collection.
                 </p>
                 <button
                   onClick={clearAllFilters}
-                  className="mt-6 inline-flex items-center gap-2 bg-primary px-6 py-3 text-xs font-bold uppercase tracking-wider text-primary-foreground hover:bg-ink transition-colors"
+                  className="mt-6 inline-flex items-center gap-2 border border-white bg-white px-6 py-3 text-xs font-bold uppercase tracking-wider text-black hover:bg-zinc-200 transition-colors"
                 >
-                  Reset All Filters
+                  Clear All Filters
                 </button>
               </div>
             )}

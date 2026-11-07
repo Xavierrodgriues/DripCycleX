@@ -51,42 +51,44 @@
 
 :root {
   --radius: 0.125rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.16 0.01 265);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.16 0.01 265);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.16 0.01 265);
-  /* HEMMLOCK signature red */
-  --primary: oklch(0.56 0.24 28);
-  --primary-foreground: oklch(0.99 0 0);
-  --secondary: oklch(0.96 0.003 265);
-  --secondary-foreground: oklch(0.16 0.01 265);
-  --muted: oklch(0.965 0.002 265);
-  --muted-foreground: oklch(0.5 0.01 265);
-  --accent: oklch(0.96 0.02 28);
-  --accent-foreground: oklch(0.16 0.01 265);
-  --destructive: oklch(0.56 0.24 28);
+  /* DRIPCYCLEX Black & White Primary Theme */
+  --background: oklch(0.04 0 0); /* Pure obsidian black #050505 */
+  --foreground: oklch(0.98 0 0); /* Crisp stark white #fafafa */
+  --card: oklch(0.1 0 0);        /* Deep charcoal surface #0f0f11 */
+  --card-foreground: oklch(0.98 0 0);
+  --popover: oklch(0.08 0 0);
+  --popover-foreground: oklch(0.98 0 0);
+  /* High contrast primary white CTA on black base */
+  --primary: oklch(0.98 0 0);
+  --primary-foreground: oklch(0.04 0 0);
+  --secondary: oklch(0.14 0 0);
+  --secondary-foreground: oklch(0.98 0 0);
+  --muted: oklch(0.12 0 0);
+  --muted-foreground: oklch(0.65 0 0); /* Legible silver-gray #a1a1aa */
+  --accent: oklch(0.16 0 0);
+  --accent-foreground: oklch(0.98 0 0);
+  /* Red accent matching DRIPCYCLEX logo X */
+  --destructive: oklch(0.6 0.24 25);
   --destructive-foreground: oklch(0.99 0 0);
-  --border: oklch(0.9 0.004 265);
-  --input: oklch(0.9 0.004 265);
-  --ring: oklch(0.56 0.24 28);
-  --ink: oklch(0.16 0.01 265);
-  --ink-foreground: oklch(0.99 0 0);
-  --surface: oklch(0.975 0.002 265);
-  --chart-1: oklch(0.56 0.24 28);
-  --chart-2: oklch(0.16 0.01 265);
-  --chart-3: oklch(0.65 0.1 28);
-  --chart-4: oklch(0.8 0.05 28);
-  --chart-5: oklch(0.5 0.01 265);
-  --sidebar: oklch(0.99 0 0);
-  --sidebar-foreground: oklch(0.16 0.01 265);
-  --sidebar-primary: oklch(0.56 0.24 28);
-  --sidebar-primary-foreground: oklch(0.99 0 0);
-  --sidebar-accent: oklch(0.96 0.02 28);
-  --sidebar-accent-foreground: oklch(0.16 0.01 265);
-  --sidebar-border: oklch(0.9 0.004 265);
-  --sidebar-ring: oklch(0.56 0.24 28);
+  --border: oklch(0.22 0 0); /* Subtle razor-sharp dark border #26262a */
+  --input: oklch(0.22 0 0);
+  --ring: oklch(0.9 0 0);
+  --ink: oklch(0.02 0 0); /* Deepest black #000000 */
+  --ink-foreground: oklch(0.98 0 0);
+  --surface: oklch(0.08 0 0); /* Elevated dark surface */
+  --chart-1: oklch(0.98 0 0);
+  --chart-2: oklch(0.6 0.24 25);
+  --chart-3: oklch(0.7 0 0);
+  --chart-4: oklch(0.4 0 0);
+  --chart-5: oklch(0.2 0 0);
+  --sidebar: oklch(0.06 0 0);
+  --sidebar-foreground: oklch(0.98 0 0);
+  --sidebar-primary: oklch(0.98 0 0);
+  --sidebar-primary-foreground: oklch(0.04 0 0);
+  --sidebar-accent: oklch(0.14 0 0);
+  --sidebar-accent-foreground: oklch(0.98 0 0);
+  --sidebar-border: oklch(0.22 0 0);
+  --sidebar-ring: oklch(0.9 0 0);
 }
 
 @layer base {
@@ -99,6 +101,7 @@
     color: var(--color-foreground);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
+    color-scheme: dark;
   }
 
   h1,
@@ -108,6 +111,22 @@
     font-family: var(--font-display);
     font-weight: 800;
     letter-spacing: -0.03em;
+  }
+
+  /* Custom scrollbar matching dark aesthetic */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #09090b;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #27272a;
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #3f3f46;
   }
 }
 
@@ -143,10 +162,10 @@
 @utility marquee-track {
   display: flex;
   width: max-content;
-  animation: hemm-marquee 26s linear infinite;
+  animation: dcx-marquee 26s linear infinite;
 }
 
-@keyframes hemm-marquee {
+@keyframes dcx-marquee {
   from {
     transform: translateX(0);
   }

@@ -1,278 +1,350 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowRight, MapPin, ShieldCheck, Sparkles, Truck } from "lucide-react";
+import { ArrowRight, ShieldCheck, Sparkles, Truck, Layers, Flame, Compass, ChevronRight } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
 import heroImg from "@/assets/hero-main.jpg";
-import promoImg from "@/assets/promo-banner.jpg";
 import editorial1 from "@/assets/editorial-1.jpg";
 import editorial2 from "@/assets/editorial-2.jpg";
-import storeImg from "@/assets/store.jpg";
-import p1a from "@/assets/p1-a.jpg";
-import p2a from "@/assets/p2-a.jpg";
-import p4a from "@/assets/p4-a.jpg";
-import p5a from "@/assets/p5-a.jpg";
-import p6a from "@/assets/p6-a.jpg";
-import p7a from "@/assets/p7-a.jpg";
 
 import { ProductCard } from "@/components/product-card";
 import { Reveal } from "@/components/reveal";
-import { CATEGORIES, products } from "@/data/products";
+import { DripcycleXLogo } from "@/components/logo";
+import { products, formatPrice } from "@/data/products";
 
 export const Route = createFileRoute("/")({
   component: Index,
 });
 
-const CATEGORY_IMAGES: Record<string, string> = {
-  Shirts: p2a,
-  "T-Shirts": p1a,
-  Polos: p4a,
-  Jeans: p5a,
-  Jackets: p6a,
-  Hoodies: p7a,
-};
-
-function Index() {
+export function Index() {
   const [email, setEmail] = useState("");
-  const newArrivals = products.filter((p) => p.isNew).slice(0, 4);
-  const bestSellers = products.filter((p) => p.isBestSeller).slice(0, 4);
+  const [activeGarmentIndex, setActiveGarmentIndex] = useState(0);
+
+  const activeGarment = products[activeGarmentIndex] ?? products[0];
+  if (!activeGarment) return null;
 
   const handleSubscribe = (e: React.FormEvent) => {
     e.preventDefault();
     if (!email) return;
-    toast.success("Welcome to HEMMLOCK", {
-      description: "You've been added to our VIP drop list.",
+    toast.success("Welcome to the DRIPCYCLEX Syndicate", {
+      description: "You are on the priority list for Drop 02.",
     });
     setEmail("");
   };
 
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col bg-background text-foreground">
       {/* Hero Campaign Section */}
-      <section className="relative min-h-[85vh] w-full overflow-hidden bg-ink text-ink-foreground flex items-center">
+      <section className="relative min-h-[90vh] w-full overflow-hidden bg-black flex items-center border-b border-white/10">
         <img
           src={heroImg}
-          alt="HEMMLOCK Menswear Collection"
-          className="absolute inset-0 h-full w-full object-cover opacity-60 object-top"
+          alt="DRIPCYCLEX Dark Streetwear"
+          className="absolute inset-0 h-full w-full object-cover opacity-45 object-center grayscale contrast-125"
         />
-        <div className="absolute inset-0 bg-gradient-to-r from-ink/90 via-ink/65 to-transparent" />
-        
+        {/* Dark radial and linear gradients for deep black focus */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/80 to-black/40" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_var(--tw-gradient-stops))] from-white/5 via-transparent to-black" />
+
         <div className="relative z-10 mx-auto w-full max-w-[1400px] px-5 py-24 sm:px-8 lg:px-12">
-          <Reveal className="max-w-2xl">
-            <span className="eyebrow bg-primary px-3 py-1.5 text-primary-foreground font-bold tracking-[0.25em]">
-              NEW SEASON COLLECTION 2026
-            </span>
-            <h1 className="display-xl mt-6 text-5xl sm:text-7xl lg:text-8xl leading-[0.88] text-white">
-              RED DEFINED.
+          <Reveal className="max-w-3xl">
+            <h1 className="display-xl text-5xl sm:text-7xl lg:text-8xl leading-[0.88] text-white">
+              BORN IN SHADOW.<br />
+              <span className="text-zinc-400">ENGINEERED FOR</span> THE STREETS.
             </h1>
-            <p className="mt-6 text-base sm:text-xl font-normal leading-relaxed text-zinc-300 max-w-xl">
-              Engineered fits, 240 GSM bio-washed cotton, and bold red-and-white retail energy. Menswear built in India for those who dress with intent.
+
+            <p className="mt-6 text-base sm:text-xl font-normal leading-relaxed text-zinc-300 max-w-2xl">
+              DRIPCYCLEX redefines luxury Indian streetwear. A curated 3-piece capsule cut from 280–420 GSM milled cottons with draconic precision and distressed chrome geometry.
             </p>
+
             <div className="mt-10 flex flex-wrap gap-4">
               <Link
                 to="/shop"
-                className="inline-flex items-center justify-center bg-primary px-8 py-4 text-sm font-bold tracking-[0.16em] uppercase text-primary-foreground transition-all duration-300 hover:bg-white hover:text-ink shadow-lg hover:shadow-primary/20"
+                className="inline-flex items-center justify-center border border-white bg-white px-8 py-4 text-xs font-black tracking-[0.2em] uppercase text-black transition-all duration-300 hover:bg-zinc-200 shadow-xl"
               >
-                Shop Collection <ArrowRight className="ml-2 h-4 w-4" />
+                Explore Trinity Drop <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
-              <Link
-                to="/stores"
-                className="inline-flex items-center justify-center border-2 border-white/30 bg-black/20 backdrop-blur-sm px-8 py-4 text-sm font-bold tracking-[0.16em] uppercase text-white transition-all duration-300 hover:border-white hover:bg-white hover:text-ink"
+              <a
+                href="#trinity-showcase"
+                className="inline-flex items-center justify-center border border-white/25 bg-black/40 backdrop-blur-md px-8 py-4 text-xs font-bold tracking-[0.2em] uppercase text-white transition-all duration-300 hover:border-white hover:bg-white/10"
               >
-                Locate Stores
-              </Link>
+                The 3 Silhouettes
+              </a>
             </div>
           </Reveal>
 
           {/* Quick Stats Overlay */}
-          <div className="mt-16 grid grid-cols-2 gap-6 sm:grid-cols-4 border-t border-white/15 pt-8 max-w-3xl">
+          <div className="mt-16 grid grid-cols-2 gap-6 sm:grid-cols-4 border-t border-white/15 pt-8 max-w-4xl">
             <div>
-              <p className="display-xl text-3xl text-primary">8</p>
-              <p className="text-xs uppercase tracking-wider text-zinc-400 mt-1">Metro Flagships</p>
+              <p className="display-xl text-3xl sm:text-4xl text-white">03</p>
+              <p className="text-[11px] uppercase tracking-widest text-zinc-400 mt-1">Core Silhouettes</p>
             </div>
             <div>
-              <p className="display-xl text-3xl text-white">240 GSM</p>
-              <p className="text-xs uppercase tracking-wider text-zinc-400 mt-1">Heavyweight Cotton</p>
+              <p className="display-xl text-3xl sm:text-4xl text-white">280–420</p>
+              <p className="text-[11px] uppercase tracking-widest text-zinc-400 mt-1">GSM Heavyweight Milled</p>
             </div>
             <div>
-              <p className="display-xl text-3xl text-primary">100%</p>
-              <p className="text-xs uppercase tracking-wider text-zinc-400 mt-1">Indian Crafted</p>
+              <p className="display-xl text-3xl sm:text-4xl text-white">300 PCS</p>
+              <p className="text-[11px] uppercase tracking-widest text-zinc-400 mt-1">Limited Batch Per Style</p>
             </div>
             <div>
-              <p className="display-xl text-3xl text-white">4.8 ★</p>
-              <p className="text-xs uppercase tracking-wider text-zinc-400 mt-1">Customer Rating</p>
+              <p className="display-xl text-3xl sm:text-4xl text-white">100%</p>
+              <p className="text-[11px] uppercase tracking-widest text-zinc-400 mt-1">Indian Ethical Craft</p>
             </div>
           </div>
         </div>
       </section>
 
       {/* Brand Marquee Ticker */}
-      <div className="overflow-hidden bg-primary py-3.5 text-primary-foreground font-bold tracking-[0.2em] text-xs uppercase">
+      <div className="overflow-hidden border-b border-white/10 bg-black py-3.5 text-zinc-300 font-bold tracking-[0.25em] text-xs uppercase">
         <div className="marquee-track flex whitespace-nowrap gap-12">
           {Array.from({ length: 4 }).map((_, i) => (
             <span key={i} className="flex items-center gap-12">
-              <span>HEMMLOCK — RED DEFINED</span>
-              <span>•</span>
-              <span>FLAGSHIP STORES IN 8 CITIES</span>
-              <span>•</span>
-              <span>240 GSM HEAVYWEIGHT COTTON</span>
-              <span>•</span>
-              <span>FREE SHIPPING ON ORDERS ABOVE ₹1999</span>
-              <span>•</span>
-              <span>15-DAY EASY RETURNS</span>
-              <span>•</span>
+              <span className="text-white">DRIPCYCLEX</span>
+              <span className="text-red-500 font-black">X</span>
+              <span>THE TRINITY DROP</span>
+              <span className="text-zinc-600">•</span>
+              <span>3 EXCLUSIVE SILHOUETTES</span>
+              <span className="text-zinc-600">•</span>
+              <span>280–420 GSM MILLED COTTON</span>
+              <span className="text-zinc-600">•</span>
+              <span>FREE PAN-INDIA DELIVERY</span>
+              <span className="text-zinc-600">•</span>
+              <span>ZERO RESTOCKS ONCE ARCHIVED</span>
+              <span className="text-zinc-600">•</span>
             </span>
           ))}
         </div>
       </div>
 
       {/* Value Highlights */}
-      <section className="border-b bg-surface py-8">
+      <section className="border-b border-white/10 bg-zinc-950/80 py-8">
         <div className="mx-auto max-w-[1400px] px-5 sm:px-8 lg:px-12">
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-border">
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-white/10">
             <div className="flex items-center gap-4 py-2 sm:px-6 first:pl-0">
-              <div className="grid h-12 w-12 shrink-0 place-items-center bg-primary/10 text-primary">
+              <div className="grid h-12 w-12 shrink-0 place-items-center border border-white/10 bg-white/5 text-white">
                 <Truck className="h-6 w-6" />
               </div>
               <div>
-                <h4 className="text-sm font-bold uppercase tracking-wider">Pan-India Express Delivery</h4>
-                <p className="text-xs text-muted-foreground mt-0.5">Free shipping on all orders over ₹1999</p>
+                <h4 className="text-xs font-bold uppercase tracking-wider text-white">Express Pan-India Logistics</h4>
+                <p className="text-xs text-zinc-400 mt-0.5">Complimentary express shipping on all orders over ₹1999</p>
               </div>
             </div>
             <div className="flex items-center gap-4 py-2 sm:px-6">
-              <div className="grid h-12 w-12 shrink-0 place-items-center bg-primary/10 text-primary">
+              <div className="grid h-12 w-12 shrink-0 place-items-center border border-white/10 bg-white/5 text-white">
                 <ShieldCheck className="h-6 w-6" />
               </div>
               <div>
-                <h4 className="text-sm font-bold uppercase tracking-wider">Considered Fits & Fabric</h4>
-                <p className="text-xs text-muted-foreground mt-0.5">Two-ply long staple cotton & bio-washed fleece</p>
+                <h4 className="text-xs font-bold uppercase tracking-wider text-white">Architectural Fabric Milling</h4>
+                <p className="text-xs text-zinc-400 mt-0.5">Custom bio-washed heavyweight cotton & brushed fleece</p>
               </div>
             </div>
             <div className="flex items-center gap-4 py-2 sm:px-6 last:pr-0">
-              <div className="grid h-12 w-12 shrink-0 place-items-center bg-primary/10 text-primary">
-                <MapPin className="h-6 w-6" />
+              <div className="grid h-12 w-12 shrink-0 place-items-center border border-white/10 bg-white/5 text-white">
+                <Flame className="h-6 w-6 text-red-500" />
               </div>
               <div>
-                <h4 className="text-sm font-bold uppercase tracking-wider">8 Flagship Retail Stores</h4>
-                <p className="text-xs text-muted-foreground mt-0.5">Experience our crimson identity in person</p>
+                <h4 className="text-xs font-bold uppercase tracking-wider text-white">The 3-Piece Capsule</h4>
+                <p className="text-xs text-zinc-400 mt-0.5">Zero dilution. Pure focus on 3 engineered silhouettes</p>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Featured Categories Grid */}
-      <section className="py-20 bg-background">
+      {/* The 3-Product Trinity Showcase */}
+      <section id="trinity-showcase" className="py-24 bg-black border-b border-white/10">
         <div className="mx-auto max-w-[1400px] px-5 sm:px-8 lg:px-12">
-          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-6 border-b border-white/10 pb-8">
             <div>
-              <span className="eyebrow text-primary">Curated Collections</span>
-              <h2 className="display-xl mt-2 text-3xl sm:text-5xl">EXPLORE CATEGORIES</h2>
+              <div className="flex items-center gap-2">
+                <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
+                <span className="eyebrow text-zinc-400 font-bold">THE 3-PIECE SIGNATURE CAPSULE</span>
+              </div>
+              <h2 className="display-xl mt-2 text-4xl sm:text-6xl text-white">
+                THE TRINITY DROP
+              </h2>
             </div>
-            <Link
-              to="/shop"
-              className="text-xs font-bold uppercase tracking-[0.16em] text-primary hover:underline flex items-center gap-1"
-            >
-              View All Showcase <ArrowRight className="h-3.5 w-3.5" />
-            </Link>
+            <p className="text-sm text-zinc-400 max-w-md">
+              We eliminated the clutter of endless fast-fashion SKUs. Three singular silhouettes engineered to be the only pieces your dark wardrobe demands.
+            </p>
           </div>
 
-          <div className="mt-12 grid grid-cols-2 gap-4 sm:gap-6 md:grid-cols-3 lg:grid-cols-6">
-            {CATEGORIES.map((category) => (
-              <Link
-                key={category}
-                to="/shop"
-                search={{ category }}
-                className="group relative block overflow-hidden bg-surface aspect-[3/4]"
-              >
-                <img
-                  src={CATEGORY_IMAGES[category]}
-                  alt={category}
-                  className="h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
+          {/* 3 Showcase Product Cards */}
+          <div className="mt-12 grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
+            {products.map((product, index) => (
+              <Reveal key={product.id} delay={index * 120}>
+                <ProductCard
+                  product={product}
+                  badgeNumber={`0${index + 1} / 03`}
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-ink/80 via-ink/20 to-transparent transition-opacity duration-300 group-hover:opacity-90" />
-                <div className="absolute bottom-4 left-4 right-4 text-white">
-                  <p className="text-xs font-semibold tracking-widest text-primary uppercase">Category</p>
-                  <h3 className="display-xl mt-1 text-xl sm:text-2xl text-white group-hover:text-primary transition-colors">
-                    {category}
-                  </h3>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* New Arrivals Showcase */}
-      <section className="py-20 bg-surface border-y border-border">
-        <div className="mx-auto max-w-[1400px] px-5 sm:px-8 lg:px-12">
-          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-            <div>
-              <span className="eyebrow text-primary">Fresh Drop</span>
-              <h2 className="display-xl mt-2 text-3xl sm:text-5xl">NEW ARRIVALS</h2>
-            </div>
-            <Link
-              to="/shop"
-              search={{ sort: "new" }}
-              className="text-xs font-bold uppercase tracking-[0.16em] text-primary hover:underline flex items-center gap-1"
-            >
-              Explore All Drops <ArrowRight className="h-3.5 w-3.5" />
-            </Link>
-          </div>
-
-          <div className="mt-12 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            {newArrivals.map((product, index) => (
-              <Reveal key={product.id} delay={index * 100}>
-                <ProductCard product={product} />
               </Reveal>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Editorial Campaign Section */}
-      <section className="py-24 bg-ink text-ink-foreground">
+      {/* Interactive Garment Anatomy Showcase */}
+      <section className="py-24 bg-zinc-950 border-b border-white/10">
+        <div className="mx-auto max-w-[1400px] px-5 sm:px-8 lg:px-12">
+          <div className="text-center max-w-2xl mx-auto mb-16">
+            <span className="eyebrow text-zinc-400 font-bold">SILHOUETTE ARCHITECTURE</span>
+            <h2 className="display-xl mt-2 text-3xl sm:text-5xl text-white">
+              ANATOMY OF THE TRINITY
+            </h2>
+            <p className="mt-3 text-sm text-zinc-400">
+              Inspect the engineering behind each of the three pieces.
+            </p>
+
+            {/* Silhouette Selector Tabs */}
+            <div className="mt-8 flex flex-wrap justify-center gap-2">
+              {products.map((p, idx) => (
+                <button
+                  key={p.id}
+                  onClick={() => setActiveGarmentIndex(idx)}
+                  className={`px-5 py-3 text-xs font-bold uppercase tracking-wider border transition-all ${
+                    activeGarmentIndex === idx
+                      ? "border-white bg-white text-black"
+                      : "border-white/15 bg-black/60 text-zinc-400 hover:border-white/40 hover:text-white"
+                  }`}
+                >
+                  0{idx + 1} · {p.category}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Active Garment Spotlight */}
+          <div className="grid gap-12 lg:grid-cols-12 items-center border border-white/10 bg-black/80 p-6 sm:p-12">
+            <div className="lg:col-span-6">
+              <div className="relative aspect-[3/4] w-full overflow-hidden border border-white/10 bg-zinc-900">
+                <img
+                  src={activeGarment.images[0]}
+                  alt={activeGarment.name}
+                  className="h-full w-full object-cover"
+                />
+                <div className="absolute bottom-4 left-4 bg-black/80 backdrop-blur-md px-3 py-1.5 border border-white/15 text-xs font-bold uppercase tracking-widest text-white">
+                  0{activeGarmentIndex + 1} // {activeGarment.category}
+                </div>
+              </div>
+            </div>
+
+            <div className="lg:col-span-6 space-y-6">
+              <div>
+                <span className="eyebrow text-red-500 font-bold">SILHOUETTE 0{activeGarmentIndex + 1} OF 03</span>
+                <h3 className="display-xl mt-2 text-3xl sm:text-4xl text-white">
+                  {activeGarment.name}
+                </h3>
+                <p className="mt-2 text-2xl font-black text-white">
+                  {formatPrice(activeGarment.price)}
+                </p>
+              </div>
+
+              <p className="text-sm text-zinc-300 leading-relaxed">
+                {activeGarment.description}
+              </p>
+
+              <div className="grid grid-cols-2 gap-4 border-y border-white/10 py-6">
+                <div>
+                  <h5 className="text-[11px] font-bold uppercase tracking-wider text-zinc-500">Milled Fabric</h5>
+                  <p className="text-xs font-semibold text-white mt-1">{activeGarment.fabric}</p>
+                </div>
+                <div>
+                  <h5 className="text-[11px] font-bold uppercase tracking-wider text-zinc-500">Available Sizes</h5>
+                  <p className="text-xs font-semibold text-white mt-1">{activeGarment.sizes.join(", ")}</p>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <h5 className="text-[11px] font-bold uppercase tracking-wider text-zinc-500">Care Directives</h5>
+                <ul className="text-xs text-zinc-400 space-y-1">
+                  {activeGarment.care.map((c, i) => (
+                    <li key={i} className="flex items-center gap-2">
+                      <span className="h-1 w-1 rounded-full bg-white/60" /> {c}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <div className="pt-4 flex flex-wrap gap-4">
+                <Link
+                  to="/product/$slug"
+                  params={{ slug: activeGarment.slug }}
+                  className="inline-flex items-center gap-2 border border-white bg-white px-8 py-3.5 text-xs font-black uppercase tracking-[0.18em] text-black transition-all hover:bg-zinc-200"
+                >
+                  Inspect Silhouette <ArrowRight className="h-4 w-4" />
+                </Link>
+                <Link
+                  to="/shop"
+                  search={{ category: activeGarment.category }}
+                  className="inline-flex items-center gap-2 border border-white/20 bg-transparent px-6 py-3.5 text-xs font-bold uppercase tracking-[0.18em] text-white transition-all hover:bg-white/10"
+                >
+                  View in Capsule
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Brand Philosophy / Editorial (As Per Logo) */}
+      <section className="py-24 bg-black text-white border-b border-white/10">
         <div className="mx-auto max-w-[1400px] px-5 sm:px-8 lg:px-12">
           <div className="grid gap-12 lg:grid-cols-2 items-center">
             <Reveal className="space-y-6">
-              <span className="eyebrow bg-primary px-3 py-1 text-primary-foreground font-bold tracking-[0.2em]">
-                EDITORIAL CAMPAIGN
-              </span>
+              <div className="inline-flex items-center gap-3 border border-white/20 bg-white/5 px-3.5 py-1.5">
+                <DripcycleXLogo className="h-8 w-8 sm:h-10 sm:w-10" />
+                <span className="eyebrow text-white font-bold tracking-[0.2em]">
+                  DRACONIC IDENTITY
+                </span>
+              </div>
+
               <h2 className="display-xl text-4xl sm:text-6xl text-white leading-tight">
-                CUT WITH INTENT. CRAFTED FOR DEPTH.
+                CUT WITH INTENT.<br />
+                <span className="text-zinc-500">CRAFTED FOR DEPTH.</span>
               </h2>
+
               <p className="text-base leading-relaxed text-zinc-300">
-                HEMMLOCK was born out of a desire for menswear that balances strict architectural proportion with soft, tactile hand-feels. Every garment in our collection undergoes custom fabric milling, reactive dyeing, and precision stitching.
+                The DRIPCYCLEX draconic emblem symbolizes relentless power, transformation, and nocturnal instinct. Rooted in black-and-white stark minimalism, each garment is built around strict architectural shoulders, dense tactile hand-feels, and precision industrial stitching.
               </p>
+
               <div className="grid grid-cols-2 gap-6 pt-4 border-t border-white/10">
                 <div>
-                  <h4 className="display-xl text-xl text-primary">2-PLY GIZA COTTON</h4>
-                  <p className="text-xs text-zinc-400 mt-1">Extra-long staple weave for crisp drape and longevity.</p>
+                  <h4 className="display-xl text-xl text-white">ZERO EXCESS</h4>
+                  <p className="text-xs text-zinc-400 mt-1">We reject algorithmic collections. Only 3 engineered pieces exist per drop.</p>
                 </div>
                 <div>
-                  <h4 className="display-xl text-xl text-white">400 GSM FLEECE</h4>
-                  <p className="text-xs text-zinc-400 mt-1">Heavyweight loopback fleece cut for relaxed structure.</p>
+                  <h4 className="display-xl text-xl text-white">CHROME HARDWARE</h4>
+                  <p className="text-xs text-zinc-400 mt-1">Distressed chrome typography and custom industrial zipper pulls.</p>
                 </div>
               </div>
+
               <div className="pt-4">
                 <Link
                   to="/about"
-                  className="inline-flex items-center gap-2 bg-white text-ink px-8 py-4 text-xs font-bold uppercase tracking-[0.18em] transition-colors hover:bg-primary hover:text-white"
+                  className="inline-flex items-center gap-2 border border-white bg-white text-black px-8 py-4 text-xs font-black uppercase tracking-[0.18em] transition-colors hover:bg-zinc-200"
                 >
-                  Read Our Philosophy <ArrowRight className="h-4 w-4" />
+                  Read The Brand Manifesto <ArrowRight className="h-4 w-4" />
                 </Link>
               </div>
             </Reveal>
 
             <div className="grid grid-cols-2 gap-4">
               <Reveal delay={150} className="space-y-4">
-                <div className="aspect-[3/4] overflow-hidden bg-zinc-900">
-                  <img src={editorial1} alt="HEMMLOCK Campaign Detail" className="h-full w-full object-cover" />
+                <div className="aspect-[3/4] overflow-hidden border border-white/10 bg-zinc-900">
+                  <img
+                    src={editorial1}
+                    alt="DRIPCYCLEX Editorial Cut"
+                    className="h-full w-full object-cover grayscale contrast-125"
+                  />
                 </div>
               </Reveal>
               <Reveal delay={300} className="space-y-4 pt-8">
-                <div className="aspect-[3/4] overflow-hidden bg-zinc-900">
-                  <img src={editorial2} alt="HEMMLOCK Model Detail" className="h-full w-full object-cover" />
+                <div className="aspect-[3/4] overflow-hidden border border-white/10 bg-zinc-900">
+                  <img
+                    src={editorial2}
+                    alt="DRIPCYCLEX Streetwear Silhouette"
+                    className="h-full w-full object-cover grayscale contrast-125"
+                  />
                 </div>
               </Reveal>
             </div>
@@ -280,111 +352,15 @@ function Index() {
         </div>
       </section>
 
-      {/* Best Sellers Grid */}
-      <section className="py-20 bg-background">
-        <div className="mx-auto max-w-[1400px] px-5 sm:px-8 lg:px-12">
-          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-            <div>
-              <span className="eyebrow text-primary">Signature Collection</span>
-              <h2 className="display-xl mt-2 text-3xl sm:text-5xl">BEST SELLERS</h2>
-            </div>
-            <Link
-              to="/shop"
-              className="text-xs font-bold uppercase tracking-[0.16em] text-primary hover:underline flex items-center gap-1"
-            >
-              Shop Full Catalog <ArrowRight className="h-3.5 w-3.5" />
-            </Link>
-          </div>
-
-          <div className="mt-12 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            {bestSellers.map((product, index) => (
-              <Reveal key={product.id} delay={index * 100}>
-                <ProductCard product={product} />
-              </Reveal>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Promotional Banner */}
-      <section className="relative overflow-hidden bg-ink py-24 text-ink-foreground">
-        <img
-          src={promoImg}
-          alt="HEMMLOCK Promotional Banner"
-          className="absolute inset-0 h-full w-full object-cover opacity-40"
-        />
-        <div className="absolute inset-0 bg-gradient-to-r from-ink via-ink/80 to-transparent" />
-        
-        <div className="relative z-10 mx-auto max-w-[1400px] px-5 sm:px-8 lg:px-12">
-          <Reveal className="max-w-xl">
-            <span className="eyebrow bg-white text-ink px-3 py-1 font-bold tracking-[0.2em]">
-              LIMITED DROP
-            </span>
-            <h2 className="display-xl mt-6 text-4xl sm:text-6xl text-white leading-tight">
-              THE SIGNAL RED CAPSULE.
-            </h2>
-            <p className="mt-4 text-base text-zinc-300 leading-relaxed">
-              Featuring our custom vivid red reactive dye across heavyweight tees, classic polos, and fleece hoodies. Vibrant, colorfast, and unapologetic.
-            </p>
-            <div className="mt-8">
-              <Link
-                to="/shop"
-                className="inline-flex items-center gap-2 bg-primary text-white px-8 py-4 text-xs font-bold uppercase tracking-[0.18em] transition-all hover:bg-white hover:text-ink"
-              >
-                Explore Red Capsule <ArrowRight className="h-4 w-4" />
-              </Link>
-            </div>
-          </Reveal>
-        </div>
-      </section>
-
-      {/* Store Teaser Section */}
-      <section className="py-20 bg-surface">
-        <div className="mx-auto max-w-[1400px] px-5 sm:px-8 lg:px-12">
-          <div className="grid gap-12 lg:grid-cols-2 items-center">
-            <div className="relative aspect-[4/3] overflow-hidden bg-zinc-200">
-              <img src={storeImg} alt="HEMMLOCK Flagship Store" className="h-full w-full object-cover" />
-              <div className="absolute top-4 left-4 bg-primary text-primary-foreground px-3 py-1 text-xs font-bold uppercase tracking-widest">
-                Flagship Concept
-              </div>
-            </div>
-            <Reveal className="space-y-6">
-              <span className="eyebrow text-primary">Physical Experience</span>
-              <h2 className="display-xl text-3xl sm:text-5xl">VISIT OUR STORES ACROSS INDIA</h2>
-              <p className="text-muted-foreground text-sm leading-relaxed">
-                Step into HEMMLOCK’s bold red-and-white retail concept stores. Discover tactile fabric swatches, try on our considered fits, and experience personal styling in Mumbai, Bengaluru, Delhi, Hyderabad, Kolkata, Chennai, Pune, and Ahmedabad.
-              </p>
-              <ul className="space-y-2 text-sm font-semibold">
-                <li className="flex items-center gap-2 text-foreground">
-                  <span className="h-2 w-2 rounded-full bg-primary" /> Bandra West, Mumbai
-                </li>
-                <li className="flex items-center gap-2 text-foreground">
-                  <span className="h-2 w-2 rounded-full bg-primary" /> 100 Feet Road, Indiranagar, Bengaluru
-                </li>
-                <li className="flex items-center gap-2 text-foreground">
-                  <span className="h-2 w-2 rounded-full bg-primary" /> Khan Market, New Delhi
-                </li>
-              </ul>
-              <div className="pt-4">
-                <Link
-                  to="/stores"
-                  className="inline-flex items-center gap-2 border-2 border-primary bg-primary text-primary-foreground px-8 py-3.5 text-xs font-bold uppercase tracking-[0.18em] transition-colors hover:bg-ink hover:border-ink hover:text-white"
-                >
-                  Locate All 8 Stores <ArrowRight className="h-4 w-4" />
-                </Link>
-              </div>
-            </Reveal>
-          </div>
-        </div>
-      </section>
-
-      {/* Newsletter Section */}
-      <section className="bg-primary py-20 text-primary-foreground">
+      {/* Newsletter / Drop Syndicate Section */}
+      <section className="bg-black py-20 text-white border-t border-white/10">
         <div className="mx-auto max-w-4xl px-5 text-center sm:px-8">
-          <Sparkles className="mx-auto h-8 w-8 text-primary-foreground/80" />
-          <h2 className="display-xl mt-4 text-3xl sm:text-5xl">JOIN THE HEMMLOCK CLUB</h2>
-          <p className="mt-4 text-sm sm:text-base text-primary-foreground/90 max-w-xl mx-auto">
-            Subscribe for early drop access, private retail event invitations, and seasonal lookbook releases.
+          <DripcycleXLogo className="mx-auto h-24 w-24 sm:h-32 sm:w-32" />
+          <h2 className="display-xl mt-6 text-3xl sm:text-5xl text-white">
+            JOIN THE DRIPCYCLE<span className="text-red-500">X</span> SYNDICATE
+          </h2>
+          <p className="mt-4 text-sm sm:text-base text-zinc-400 max-w-xl mx-auto">
+            Subscribe for early drop windows, private flagship fitting invitations, and password-protected archive releases.
           </p>
           <form onSubmit={handleSubscribe} className="mt-8 flex flex-col sm:flex-row gap-3 max-w-md mx-auto">
             <input
@@ -393,21 +369,20 @@ function Index() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="Enter your email address"
-              className="h-12 flex-1 bg-white px-4 text-sm text-ink placeholder:text-zinc-500 focus:outline-none"
+              className="h-12 flex-1 border border-white/20 bg-zinc-950 px-4 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-white"
             />
             <button
               type="submit"
-              className="h-12 bg-ink px-8 text-xs font-bold uppercase tracking-[0.18em] text-white transition-colors hover:bg-white hover:text-ink"
+              className="h-12 bg-white px-8 text-xs font-black uppercase tracking-[0.18em] text-black transition-colors hover:bg-zinc-200"
             >
-              Subscribe
+              Get Access
             </button>
           </form>
-          <p className="mt-4 text-[11px] uppercase tracking-widest text-primary-foreground/75">
-            No spam. Unsubscribe anytime.
+          <p className="mt-4 text-[11px] uppercase tracking-widest text-zinc-600">
+            Strictly limited drops · Zero spam · Unsubscribe anytime
           </p>
         </div>
       </section>
     </div>
   );
 }
-
