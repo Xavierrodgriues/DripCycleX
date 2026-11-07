@@ -11,12 +11,22 @@ export const isSupabaseConfigured = Boolean(
   SUPABASE_URL && SUPABASE_ANON_KEY && !SUPABASE_URL.includes("your-project")
 );
 
+// SSR-Safe WebSocket transport: Uses native browser WebSocket on client-side,
+// and a dummy constructor fallback on Node < 22 SSR to prevent crash.
+const WebSocketTransport =
+  typeof WebSocket !== "undefined"
+    ? WebSocket
+    : typeof globalThis !== "undefined" && globalThis.WebSocket
+      ? globalThis.WebSocket
+      : class DummyWebSocket {};
+
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
-    persistSession: true,
-    autoRefreshToken: true,
+    persistSession: typeof window !== "undefined",
+    autoRefreshToken: typeof window !== "undefined",
   },
   realtime: {
+    transport: WebSocketTransport as unknown as typeof WebSocket,
     params: {
       eventsPerSecond: 10,
     },
