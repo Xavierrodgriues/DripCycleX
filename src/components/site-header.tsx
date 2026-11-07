@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
-import { Heart, Menu, Search, ShoppingBag, X, Home, Compass, Grid3x3, Trash2 } from "lucide-react";
+import { Heart, Menu, Search, ShoppingBag, X, Home, Compass, Grid3x3, Trash2, User } from "lucide-react";
 import { DripcycleXLogo } from "@/components/logo";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetClose } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
 import { formatPrice, products } from "@/data/products";
 import { useShop } from "@/lib/shop-store";
+import { useAuth } from "@/lib/auth-store";
+import { initiateWhatsAppCheckout } from "@/lib/whatsapp";
 import { cn } from "@/lib/utils";
 
 const NAV = [
@@ -24,6 +26,7 @@ export function SiteHeader() {
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { cart, cartCount, cartTotal, wishlist, removeLine, setQty, toggleWishlist } = useShop();
+  const { currentUser } = useAuth();
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 12);
@@ -120,6 +123,19 @@ export function SiteHeader() {
                 </div>
               </SheetContent>
             </Sheet>
+
+            {/* Customer Account / Sign In */}
+            <Link
+              to="/auth"
+              aria-label={currentUser ? `Account: ${currentUser.name}` : "Sign In or Register"}
+              className="relative grid h-10 w-10 place-items-center text-zinc-300 transition-colors hover:text-white hover:bg-white/5 rounded-md"
+              title={currentUser ? `Signed in: ${currentUser.name}` : "Sign In / Register"}
+            >
+              <User className="h-5 w-5" />
+              {currentUser && (
+                <span className="absolute bottom-2 right-2 h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-black" />
+              )}
+            </Link>
 
             {/* Wishlist Drawer */}
             <Sheet>
@@ -240,8 +256,24 @@ export function SiteHeader() {
                     <span className="text-zinc-400">Total</span>
                     <span className="text-xl font-black text-white">{formatPrice(cartTotal)}</span>
                   </div>
-                  <button className="mt-4 w-full bg-white py-3.5 text-xs font-black tracking-[0.2em] text-black uppercase transition-colors hover:bg-zinc-200">
-                    Proceed to Checkout
+                  <button
+                    onClick={() =>
+                      initiateWhatsAppCheckout(
+                        cart,
+                        cartTotal,
+                        currentUser
+                          ? {
+                              name: currentUser.name,
+                              phone: currentUser.phone,
+                              address: `${currentUser.address}, ${currentUser.city} - ${currentUser.zipCode}`,
+                            }
+                          : undefined
+                      )
+                    }
+                    disabled={cart.length === 0}
+                    className="mt-4 flex w-full items-center justify-center gap-2 bg-white py-3.5 text-xs font-black tracking-[0.2em] text-black uppercase transition-colors hover:bg-zinc-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Proceed to WhatsApp Checkout
                   </button>
                 </div>
               </SheetContent>
@@ -325,6 +357,30 @@ export function SiteHeader() {
                       </ul>
                     )}
                   </div>
+
+                  {/* User Profile / Login Link in Mobile Menu */}
+                  <Link
+                    to="/auth"
+                    onClick={() => setMenuOpen(false)}
+                    className="flex items-center justify-between rounded-lg border border-white/15 bg-zinc-900/90 p-3.5 text-white transition-all hover:bg-zinc-800"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="grid h-8 w-8 place-items-center rounded-full bg-white/10 text-white font-bold text-xs uppercase">
+                        {currentUser ? currentUser.name.slice(0, 2) : <User className="h-4 w-4" />}
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-white">
+                          {currentUser ? currentUser.name : "Sign In / Register"}
+                        </p>
+                        <p className="text-[10px] text-zinc-400">
+                          {currentUser ? currentUser.phone : "Access your DRIPCYCLEX profile & address"}
+                        </p>
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+                      {currentUser ? "Profile →" : "Login →"}
+                    </span>
+                  </Link>
 
                   {/* Navigation Links */}
                   <nav className="flex flex-col divide-y divide-white/10">

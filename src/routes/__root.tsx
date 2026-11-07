@@ -4,6 +4,7 @@ import {
   Link,
   createRootRouteWithContext,
   useRouter,
+  useRouterState,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
@@ -14,7 +15,9 @@ import { reportLovableError } from "../lib/lovable-error-reporting";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { ShopProvider } from "@/lib/shop-store";
+import { AuthProvider } from "@/lib/auth-store";
 import { Toaster } from "@/components/ui/sonner";
+import { initSupabaseRealtimeSubscription } from "@/lib/supabase";
 
 function NotFoundComponent() {
   return (
@@ -125,17 +128,28 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const isAdmin = pathname.startsWith("/admin");
+
+  useEffect(() => {
+    const cleanup = initSupabaseRealtimeSubscription();
+    return () => {
+      cleanup();
+    };
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ShopProvider>
-        <SiteHeader />
-        <main className="min-h-screen pb-16 lg:pb-0">
-          <Outlet />
-        </main>
-        <SiteFooter />
-        <Toaster theme="dark" />
-      </ShopProvider>
+      <AuthProvider>
+        <ShopProvider>
+          {!isAdmin && <SiteHeader />}
+          <main className={isAdmin ? "min-h-screen bg-black" : "min-h-screen pb-16 lg:pb-0"}>
+            <Outlet />
+          </main>
+          {!isAdmin && <SiteFooter />}
+          <Toaster theme="dark" />
+        </ShopProvider>
+      </AuthProvider>
     </QueryClientProvider>
   );
 }

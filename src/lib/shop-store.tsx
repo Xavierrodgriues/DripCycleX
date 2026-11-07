@@ -1,4 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useAuth } from "@/lib/auth-store";
+import { products } from "@/data/products";
+import { broadcastSync } from "@/lib/sync-channel";
 
 export type CartLine = {
   id: string;
@@ -28,27 +31,50 @@ const CART_KEY = "dripcyclex.cart";
 const WISH_KEY = "dripcyclex.wishlist";
 
 export function ShopProvider({ children }: { children: ReactNode }) {
-  const [cart, setCart] = useState<CartLine[]>([]);
-  const [wishlist, setWishlist] = useState<string[]>([]);
-
-  useEffect(() => {
+  // Synchronous lazy state initializers prevent blank mount race conditions
+  const [cart, setCart] = useState<CartLine[]>(() => {
     try {
       const c = localStorage.getItem(CART_KEY) || localStorage.getItem("hemmlock.cart");
-      const w = localStorage.getItem(WISH_KEY) || localStorage.getItem("hemmlock.wishlist");
-      if (c) setCart(JSON.parse(c));
-      if (w) setWishlist(JSON.parse(w));
+      return c ? JSON.parse(c) : [];
     } catch {
-      /* ignore malformed storage */
+      return [];
     }
-  }, []);
+  });
 
-  useEffect(() => {
-    localStorage.setItem(CART_KEY, JSON.stringify(cart));
-  }, [cart]);
+  const [wishlist, setWishlist] = useState<string[]>(() => {
+    try {
+      const w = localStorage.getItem(WISH_KEY) || localStorage.getItem("hemmlock.wishlist");
+      return w ? JSON.parse(w) : [];
+    } catch {
+      return [];
+    }
+  });
 
+  const { syncCartToAdmin, syncWishlistToAdmin } = useAuth();
+
+  // Save cart to storage and sync to admin pipeline
   useEffect(() => {
-    localStorage.setItem(WISH_KEY, JSON.stringify(wishlist));
-  }, [wishlist]);
+    try {
+      localStorage.setItem(CART_KEY, JSON.stringify(cart));
+      localStorage.setItem("hemmlock.cart", JSON.stringify(cart));
+    } catch {
+      /* ignore */
+    }
+    syncCartToAdmin(cart);
+    broadcastSync("CART_UPDATED", { count: cart.length });
+  }, [cart, syncCartToAdmin]);
+
+  // Save wishlist to storage and sync to admin pipeline
+  useEffect(() => {
+    try {
+      localStorage.setItem(WISH_KEY, JSON.stringify(wishlist));
+      localStorage.setItem("hemmlock.wishlist", JSON.stringify(wishlist));
+    } catch {
+      /* ignore */
+    }
+    syncWishlistToAdmin(wishlist, products);
+    broadcastSync("WISHLIST_UPDATED", { count: wishlist.length });
+  }, [wishlist, syncWishlistToAdmin]);
 
   const addToCart = useCallback((line: Omit<CartLine, "id">) => {
     const id = `${line.slug}-${line.size}-${line.color}`;
