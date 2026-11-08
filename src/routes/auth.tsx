@@ -110,7 +110,7 @@ function AuthPage() {
           state: regState.trim() || "State",
           zipCode: regZip.trim(),
         },
-        regPassword
+        regPassword,
       );
 
       if (success) {
@@ -160,16 +160,24 @@ function AuthPage() {
           {/* Account Details */}
           <div className="space-y-3 text-xs border border-white/10 bg-black/60 p-4 rounded-lg">
             <div className="flex justify-between border-b border-white/5 pb-2">
-              <span className="text-zinc-500 uppercase font-bold tracking-wider">Contact Phone</span>
+              <span className="text-zinc-500 uppercase font-bold tracking-wider">
+                Contact Phone
+              </span>
               <span className="font-mono text-white">{currentUser.phone}</span>
             </div>
             <div className="flex justify-between border-b border-white/5 pb-2">
-              <span className="text-zinc-500 uppercase font-bold tracking-wider">Delivery Address</span>
+              <span className="text-zinc-500 uppercase font-bold tracking-wider">
+                Delivery Address
+              </span>
               <span className="text-white text-right max-w-xs">{currentUser.address}</span>
             </div>
             <div className="flex justify-between border-b border-white/5 pb-2">
-              <span className="text-zinc-500 uppercase font-bold tracking-wider">City / Pincode</span>
-              <span className="text-white">{currentUser.city}, {currentUser.zipCode}</span>
+              <span className="text-zinc-500 uppercase font-bold tracking-wider">
+                City / Pincode
+              </span>
+              <span className="text-white">
+                {currentUser.city}, {currentUser.zipCode}
+              </span>
             </div>
             <div className="flex justify-between pt-1">
               <span className="text-zinc-500 uppercase font-bold tracking-wider">Member Since</span>
@@ -204,8 +212,8 @@ function AuthPage() {
         {/* Emblem & Branding */}
         <div className="flex flex-col items-center text-center mb-6">
           <DripcycleXLogo className="h-16 w-16 sm:h-20 sm:w-20 drop-shadow-[0_0_15px_rgba(255,255,255,0.2)]" />
-          <h1 className="mt-3 text-xl sm:text-2xl font-black uppercase tracking-widest text-white">
-            DRIPCYCLEX ACCOUNT
+          <h1 className="mt-3 font-brand text-lg sm:text-xl font-black uppercase tracking-[0.2em] text-white">
+            DRIPCYCLE<span className="text-red-500 font-black">X</span> ACCOUNT
           </h1>
           <p className="mt-1 text-xs text-zinc-400">
             {mode === "login"
@@ -421,7 +429,11 @@ function AuthPage() {
                     onClick={() => setShowRegPassword(!showRegPassword)}
                     className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-white"
                   >
-                    {showRegPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                    {showRegPassword ? (
+                      <EyeOff className="h-3.5 w-3.5" />
+                    ) : (
+                      <Eye className="h-3.5 w-3.5" />
+                    )}
                   </button>
                 </div>
               </div>
@@ -464,4 +476,3 @@ function AuthPage() {
     </div>
   );
 }
-

@@ -517,7 +517,7 @@ VALUES
             'Cool iron if necessary',
             'Store on contoured hanger'
         ],
-        ARRAY['Drop 03', 'Limited 300 Pcs'],
+        ARRAY['Drop 03', 'Limited Pieces'],
         true,
         false,
         true

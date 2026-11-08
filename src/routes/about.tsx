@@ -21,7 +21,7 @@ function AboutPage() {
           className="absolute inset-0 h-full w-full object-cover opacity-35 object-center grayscale contrast-125"
         />
         <div className="absolute inset-0 bg-gradient-to-r from-black via-black/85 to-transparent" />
-        
+
         <div className="relative z-10 mx-auto max-w-[1400px] px-5 sm:px-8 lg:px-12">
           <Reveal className="max-w-2xl">
             <div className="inline-flex items-center gap-3 border border-white/20 bg-white/5 px-3.5 py-1.5">
@@ -34,7 +34,9 @@ function AboutPage() {
               STREETWEAR CUT WITH INTENT.
             </h1>
             <p className="mt-6 text-base sm:text-lg text-zinc-300 leading-relaxed max-w-xl">
-              DRIPCYCLEX is an Indian dark luxury menswear house defined by architectural fits, heavyweight milled fabrics, and an uncompromising black & white draconic visual identity.
+              DRIPCYCLEX is an Indian dark luxury menswear house defined by architectural fits,
+              heavyweight milled fabrics, and an uncompromising black & white draconic visual
+              identity.
             </p>
           </Reveal>
         </div>
@@ -46,21 +48,33 @@ function AboutPage() {
           <div className="grid gap-12 lg:grid-cols-2 items-center">
             <Reveal className="space-y-6">
               <span className="eyebrow text-zinc-400 font-bold">The Origin</span>
-              <h2 className="display-xl text-3xl sm:text-5xl text-white">REJECTING FAST FASHION BLOAT</h2>
+              <h2 className="display-xl text-3xl sm:text-5xl text-white">
+                REJECTING FAST FASHION BLOAT
+              </h2>
               <p className="text-zinc-400 text-sm leading-relaxed">
-                Founded with the belief that contemporary Indian menswear had succumbed to endless collections of flimsy poly-blends, DRIPCYCLEX set out to strip away the noise. We build exclusively around heavy milled cottons, dropped shoulders, and stark black-and-white tonal contrast.
+                Founded with the belief that contemporary Indian menswear had succumbed to endless
+                collections of flimsy poly-blends, DRIPCYCLEX set out to strip away the noise. We
+                build exclusively around heavy milled cottons, dropped shoulders, and stark
+                black-and-white tonal contrast.
               </p>
               <p className="text-zinc-400 text-sm leading-relaxed">
-                By restricting our focus to a curated 3-piece Trinity Drop (Oversized Cyber Tee, Signature Stealth Hoodie, and Tactical Matte Bomber), every silhouette receives surgical pattern attention, custom ribbings, and reinforced construction.
+                By restricting our focus to a curated 3-piece Trinity Drop (Oversized Cyber Tee,
+                Signature Stealth Hoodie, and Tactical Matte Bomber), every silhouette receives
+                surgical pattern attention, custom ribbings, and reinforced construction.
               </p>
               <div className="grid grid-cols-2 gap-4 border-t border-white/10 pt-6">
                 <div>
                   <h4 className="display-xl text-2xl text-white">01. ZERO EXCESS</h4>
-                  <p className="text-xs text-zinc-400 mt-1">Exactly 3 foundational pieces per drop. Every seam engineered for structural longevity.</p>
+                  <p className="text-xs text-zinc-400 mt-1">
+                    Exactly 3 foundational pieces per drop. Every seam engineered for structural
+                    longevity.
+                  </p>
                 </div>
                 <div>
                   <h4 className="display-xl text-2xl text-white">02. DRACONIC EDGE</h4>
-                  <p className="text-xs text-zinc-400 mt-1">Sharp chrome emblems and subtle red X highlights signify raw instinct and power.</p>
+                  <p className="text-xs text-zinc-400 mt-1">
+                    Sharp chrome emblems and subtle red X highlights signify raw instinct and power.
+                  </p>
                 </div>
               </div>
             </Reveal>
@@ -74,7 +88,8 @@ function AboutPage() {
               <div className="absolute bottom-6 left-6 right-6 bg-black/90 border border-white/15 backdrop-blur-md p-5 text-white">
                 <p className="display-xl text-lg text-white">DOMESTIC FABRIC MILLING</p>
                 <p className="text-xs text-zinc-400 mt-1">
-                  100% ethically milled and tailored in partner manufacturing hubs across Tamil Nadu & Maharashtra.
+                  100% ethically milled and tailored in partner manufacturing hubs across Tamil Nadu
+                  & Maharashtra.
                 </p>
               </div>
             </div>
@@ -87,7 +102,9 @@ function AboutPage() {
         <div className="mx-auto max-w-[1400px] px-5 sm:px-8 lg:px-12">
           <div className="text-center max-w-xl mx-auto mb-16">
             <span className="eyebrow text-zinc-400 font-bold">Core Foundations</span>
-            <h2 className="display-xl mt-2 text-3xl sm:text-5xl text-white">FOUR PILLARS OF DRIPCYCLEX</h2>
+            <h2 className="display-xl mt-2 text-3xl sm:text-5xl text-white">
+              FOUR PILLARS OF DRIPCYCLEX
+            </h2>
           </div>
 
           <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4">
@@ -97,7 +114,8 @@ function AboutPage() {
               </div>
               <h3 className="display-xl text-xl text-white">FIT ARCHITECTURE</h3>
               <p className="text-xs text-zinc-400 leading-relaxed">
-                Drop shoulders cut with boxy precision, double-layer hoods that stand proud, and sleeve lengths designed for confident volume.
+                Drop shoulders cut with boxy precision, double-layer hoods that stand proud, and
+                sleeve lengths designed for confident volume.
               </p>
             </Reveal>
 
@@ -107,7 +125,8 @@ function AboutPage() {
               </div>
               <h3 className="display-xl text-xl text-white">HEAVYWEIGHT DENSITIES</h3>
               <p className="text-xs text-zinc-400 leading-relaxed">
-                280 GSM combed cotton and 420 GSM loopback brushed fleece milled exclusively to prevent limp drape and stretching.
+                280 GSM combed cotton and 420 GSM loopback brushed fleece milled exclusively to
+                prevent limp drape and stretching.
               </p>
             </Reveal>
 
@@ -117,7 +136,8 @@ function AboutPage() {
               </div>
               <h3 className="display-xl text-xl text-white">CHROME HARDWARE</h3>
               <p className="text-xs text-zinc-400 leading-relaxed">
-                Industrial custom zipper pulls, reinforced high-twist ribbings, and fade-resistant monochrome screen printing.
+                Industrial custom zipper pulls, reinforced high-twist ribbings, and fade-resistant
+                monochrome screen printing.
               </p>
             </Reveal>
 
@@ -127,7 +147,8 @@ function AboutPage() {
               </div>
               <h3 className="display-xl text-xl text-white">LIMITED DROPS</h3>
               <p className="text-xs text-zinc-400 leading-relaxed">
-                Numbered runs strictly capped at 300 pieces per silhouette to preserve rarity, authenticity, and high craft standards.
+                Strictly limited piece runs per silhouette to preserve rarity,
+                authenticity, and uncompromising craft standards. Zero restocks once archived.
               </p>
             </Reveal>
           </div>
@@ -140,19 +161,27 @@ function AboutPage() {
           <div className="grid grid-cols-2 gap-8 md:grid-cols-4 text-center divide-y md:divide-y-0 md:divide-x divide-white/10">
             <div className="py-4">
               <p className="display-xl text-4xl sm:text-6xl text-white">03</p>
-              <p className="text-xs uppercase tracking-widest text-zinc-400 mt-2">Trinity Drop Silhouettes</p>
+              <p className="text-xs uppercase tracking-widest text-zinc-400 mt-2">
+                Trinity Drop Silhouettes
+              </p>
             </div>
             <div className="py-4">
               <p className="display-xl text-4xl sm:text-6xl text-white">280–420</p>
-              <p className="text-xs uppercase tracking-widest text-zinc-400 mt-2">GSM Heavyweight Milled</p>
+              <p className="text-xs uppercase tracking-widest text-zinc-400 mt-2">
+                GSM Heavyweight Milled
+              </p>
             </div>
             <div className="py-4">
-              <p className="display-xl text-4xl sm:text-6xl text-white">300</p>
-              <p className="text-xs uppercase tracking-widest text-zinc-400 mt-2">Limited Batch Per Style</p>
+              <p className="display-xl text-4xl sm:text-6xl text-white">8 DAYS</p>
+              <p className="text-xs uppercase tracking-widest text-zinc-400 mt-2">
+                Working Days Delivery · Low Fee
+              </p>
             </div>
             <div className="py-4">
               <p className="display-xl text-4xl sm:text-6xl text-white">4.9 ★</p>
-              <p className="text-xs uppercase tracking-widest text-zinc-400 mt-2">Average Verified Rating</p>
+              <p className="text-xs uppercase tracking-widest text-zinc-400 mt-2">
+                Average Verified Rating
+              </p>
             </div>
           </div>
         </div>
@@ -163,9 +192,13 @@ function AboutPage() {
         <div className="mx-auto max-w-[1400px] px-5 sm:px-8 lg:px-12">
           <div className="max-w-2xl mx-auto text-center space-y-6">
             <span className="eyebrow text-zinc-400 font-bold">100% DIRECT-TO-CONSUMER</span>
-            <h2 className="display-xl text-3xl sm:text-5xl text-white">THE ONLINE-EXCLUSIVE MODEL</h2>
+            <h2 className="display-xl text-3xl sm:text-5xl text-white">
+              THE ONLINE-EXCLUSIVE MODEL
+            </h2>
             <p className="text-zinc-400 text-sm leading-relaxed">
-              DRIPCYCLEX operates without offline retail middlemen or physical boutique markups. Every rupee invested goes directly into 280–420 GSM heavy fabric milling, bespoke industrial trims, and fast doorstep delivery across India.
+              DRIPCYCLEX operates without offline retail middlemen or physical boutique markups.
+              Every rupee invested goes directly into 280–420 GSM heavy fabric milling, bespoke
+              industrial trims, and dependable delivery within 8 working days across India at low delivery fees.
             </p>
             <div className="pt-4 flex justify-center gap-4">
               <Link

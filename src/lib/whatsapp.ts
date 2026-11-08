@@ -20,7 +20,7 @@ export interface CustomerCheckoutInfo {
 export async function recordOrderInSupabase(
   cart: CartLine[],
   totalAmount: number,
-  customer?: CustomerCheckoutInfo
+  customer?: CustomerCheckoutInfo,
 ): Promise<void> {
   if (!isSupabaseConfigured || cart.length === 0) return;
   try {
@@ -65,12 +65,9 @@ export async function recordOrderInSupabase(
 export function buildWhatsAppCheckoutUrl(
   cart: CartLine[],
   totalAmount: number,
-  customer?: CustomerCheckoutInfo
+  customer?: CustomerCheckoutInfo,
 ): string {
-  const lines: string[] = [
-    "⚡ *DRIPCYCLEX TRINITY ORDER* ⚡",
-    "==============================",
-  ];
+  const lines: string[] = ["⚡ *DRIPCYCLEX TRINITY ORDER* ⚡", "=============================="];
 
   if (customer?.name) {
     lines.push(`*Customer:* ${customer.name}`);
@@ -86,13 +83,13 @@ export function buildWhatsAppCheckoutUrl(
     lines.push(
       `${index + 1}. *${item.name}*`,
       `   • Size: ${item.size} | Color: ${item.color}`,
-      `   • Qty: ${item.qty} × ₹${item.price.toLocaleString("en-IN")} = ₹${(item.qty * item.price).toLocaleString("en-IN")}`
+      `   • Qty: ${item.qty} × ₹${item.price.toLocaleString("en-IN")} = ₹${(item.qty * item.price).toLocaleString("en-IN")}`,
     );
   });
 
   lines.push("------------------------------");
   lines.push(`*TOTAL PAYABLE:* ₹${totalAmount.toLocaleString("en-IN")}`);
-  lines.push("*SHIPPING:* Complimentary Express");
+  lines.push("*DELIVERY:* Pan-India (8 Working Days · Low Delivery Fee)");
   lines.push("------------------------------");
 
   if (customer?.address) {
@@ -116,11 +113,10 @@ export function buildWhatsAppCheckoutUrl(
 export function initiateWhatsAppCheckout(
   cart: CartLine[],
   totalAmount: number,
-  customer?: CustomerCheckoutInfo
+  customer?: CustomerCheckoutInfo,
 ): void {
   if (cart.length === 0) return;
   recordOrderInSupabase(cart, totalAmount, customer);
   const url = buildWhatsAppCheckoutUrl(cart, totalAmount, customer);
   window.open(url, "_blank", "noopener,noreferrer");
 }
-

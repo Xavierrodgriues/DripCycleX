@@ -11,6 +11,7 @@ A luxury dark menswear and streetwear e-commerce platform built for **DRIPCYCLEX
 ## Curated 3-Piece Showcase (The Trinity Drop)
 
 Rather than overwhelming users with excessive fast-fashion SKUs, DRIPCYCLEX focuses on a curated 3-piece foundation:
+
 1. **DRIPCYCLEX Heavyweight Cyber Tee** — 280 GSM combed cotton with drop-shoulder cut and draconic screen-printed back.
 2. **DRIPCYCLEX Signature Stealth Hoodie** — 420 GSM brushed fleece with double-layered structural hood and chrome crest.
 3. **DRIPCYCLEX Tactical Matte Bomber** — Water-repellent technical poly shell with silver industrial hardware.

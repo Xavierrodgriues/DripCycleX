@@ -131,7 +131,9 @@ function ShopPage() {
               )}
             >
               <span>The Full Capsule</span>
-              <span className="text-xs bg-white/10 px-1.5 py-0.5 rounded text-white">{products.length}</span>
+              <span className="text-xs bg-white/10 px-1.5 py-0.5 rounded text-white">
+                {products.length}
+              </span>
             </button>
           </li>
           {CATEGORIES.map((cat) => {
@@ -147,7 +149,9 @@ function ShopPage() {
                   )}
                 >
                   <span>{cat}</span>
-                  <span className="text-xs bg-white/10 px-1.5 py-0.5 rounded text-white">{count}</span>
+                  <span className="text-xs bg-white/10 px-1.5 py-0.5 rounded text-white">
+                    {count}
+                  </span>
                 </button>
               </li>
             );
@@ -225,9 +229,7 @@ function ShopPage() {
               onClick={() => updateFilters({ maxPrice: item.val })}
               className={cn(
                 "block w-full text-left py-1 text-sm transition-colors",
-                maxPrice === item.val
-                  ? "font-bold text-white"
-                  : "text-zinc-400 hover:text-white",
+                maxPrice === item.val ? "font-bold text-white" : "text-zinc-400 hover:text-white",
               )}
             >
               {item.label}
@@ -260,7 +262,8 @@ function ShopPage() {
             {selectedCategory ? `${selectedCategory.toUpperCase()} DROP` : "THE 3-PIECE SHOWCASE"}
           </h1>
           <p className="mt-3 text-sm text-zinc-400 max-w-xl">
-            A pure architectural study in black & white. Three cornerstone pieces: Heavyweight Cyber Tee, Signature Stealth Hoodie, and Tactical Matte Bomber.
+            A pure architectural study in black & white. Three cornerstone pieces: Heavyweight Cyber
+            Tee, Signature Stealth Hoodie, and Tactical Matte Bomber.
           </p>
         </div>
       </div>
@@ -277,7 +280,10 @@ function ShopPage() {
                   <Filter className="h-4 w-4" /> Filters ({activeFilterCount})
                 </button>
               </SheetTrigger>
-              <SheetContent side="left" className="w-full max-w-xs overflow-y-auto bg-zinc-950 border-r border-white/10 text-white">
+              <SheetContent
+                side="left"
+                className="w-full max-w-xs overflow-y-auto bg-zinc-950 border-r border-white/10 text-white"
+              >
                 <SheetHeader className="border-b border-white/10 pb-4">
                   <SheetTitle className="display-xl text-xl text-white">CAPSULE FILTERS</SheetTitle>
                 </SheetHeader>

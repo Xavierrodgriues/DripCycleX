@@ -53,12 +53,20 @@ export interface UserWishlistRecord {
 interface AuthContextType {
   currentUser: CustomerUser | null;
   users: CustomerUser[];
-  register: (data: Omit<CustomerUser, "id" | "registeredAt" | "status">, password: string) => boolean;
+  register: (
+    data: Omit<CustomerUser, "id" | "registeredAt" | "status">,
+    password: string,
+  ) => boolean;
   login: (emailOrPhone: string, password: string) => boolean;
   logout: () => void;
   updateProfile: (data: Partial<CustomerUser>) => void;
-  syncCartToAdmin: (cart: { name: string; size: string; color: string; qty: number; price: number }[]) => void;
-  syncWishlistToAdmin: (productSlugs: string[], allProducts: { id: string; slug: string; name: string; category: string; price: number }[]) => void;
+  syncCartToAdmin: (
+    cart: { name: string; size: string; color: string; qty: number; price: number }[],
+  ) => void;
+  syncWishlistToAdmin: (
+    productSlugs: string[],
+    allProducts: { id: string; slug: string; name: string; category: string; price: number }[],
+  ) => void;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -105,14 +113,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     (userData: Omit<CustomerUser, "id" | "registeredAt" | "status">, password: string): boolean => {
       try {
         const passwords: StoredUserCredential[] = JSON.parse(
-          localStorage.getItem(PASSWORDS_KEY) || "[]"
+          localStorage.getItem(PASSWORDS_KEY) || "[]",
         );
 
         // Check if email or phone already registered
         const existing = users.find(
           (u) =>
             u.email.toLowerCase() === userData.email.toLowerCase() ||
-            u.phone.trim() === userData.phone.trim()
+            u.phone.trim() === userData.phone.trim(),
         );
 
         if (existing) {
@@ -151,11 +159,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return true;
       } catch (err) {
         console.error(err);
-        toast.error("Registration Failed", { description: "Please check your details and try again." });
+        toast.error("Registration Failed", {
+          description: "Please check your details and try again.",
+        });
         return false;
       }
     },
-    [users]
+    [users],
   );
 
   // Login
@@ -163,14 +173,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     (emailOrPhone: string, password: string): boolean => {
       try {
         const passwords: StoredUserCredential[] = JSON.parse(
-          localStorage.getItem(PASSWORDS_KEY) || "[]"
+          localStorage.getItem(PASSWORDS_KEY) || "[]",
         );
 
         const cleanInput = emailOrPhone.trim().toLowerCase();
         const matchedCred = passwords.find(
-          (c) =>
-            (c.email === cleanInput || c.phone === cleanInput) &&
-            c.password === password
+          (c) => (c.email === cleanInput || c.phone === cleanInput) && c.password === password,
         );
 
         if (!matchedCred) {
@@ -204,7 +212,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return false;
       }
     },
-    [users]
+    [users],
   );
 
   // Logout
@@ -222,16 +230,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUsers((prev) => prev.map((u) => (u.id === updated.id ? updated : u)));
       toast.success("Profile Updated", { description: "Your details have been saved." });
     },
-    [currentUser]
+    [currentUser],
   );
 
   // Sync Cart lines to Admin storage
   const syncCartToAdmin = useCallback(
     (cart: { name: string; size: string; color: string; qty: number; price: number }[]) => {
       try {
-        const allAdminCarts: UserCartRecord[] = JSON.parse(
-          localStorage.getItem(CARTS_KEY) || "[]"
-        );
+        const allAdminCarts: UserCartRecord[] = JSON.parse(localStorage.getItem(CARTS_KEY) || "[]");
 
         // Attribute to registered customer if available, otherwise storefront shopper
         const activeUser = currentUser || (users.length > 0 ? users[0] : null);
@@ -240,10 +246,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const userPhone = activeUser ? activeUser.phone : "+91 84697 11940";
         const userEmail = activeUser ? activeUser.email : "shopper@dripcyclex.com";
 
-        // Remove previous items for this user/guest
-        const filtered = allAdminCarts.filter(
-          (c) => c.userId !== userId && c.userId !== "guest-visitor" && c.userId !== "live-storefront-session"
-        );
+        // Only remove items belonging to this specific user ID
+        const filtered = allAdminCarts.filter((c) => c.userId !== userId);
 
         // Add current items
         const newRecords: UserCartRecord[] = cart.map((line, idx) => ({
@@ -266,18 +270,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         /* ignore */
       }
     },
-    [currentUser, users]
+    [currentUser, users],
   );
 
   // Sync Wishlist to Admin storage
   const syncWishlistToAdmin = useCallback(
     (
       productSlugs: string[],
-      allProducts: { id: string; slug: string; name: string; category: string; price: number }[]
+      allProducts: { id: string; slug: string; name: string; category: string; price: number }[],
     ) => {
       try {
         const allAdminWishlists: UserWishlistRecord[] = JSON.parse(
-          localStorage.getItem(WISHLISTS_KEY) || "[]"
+          localStorage.getItem(WISHLISTS_KEY) || "[]",
         );
 
         const activeUser = currentUser || (users.length > 0 ? users[0] : null);
@@ -286,15 +290,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const userPhone = activeUser ? activeUser.phone : "+91 84697 11940";
         const userEmail = activeUser ? activeUser.email : "shopper@dripcyclex.com";
 
-        // Remove previous wishlists for this user/guest
-        const filtered = allAdminWishlists.filter(
-          (w) => w.userId !== userId && w.userId !== "guest-visitor" && w.userId !== "live-storefront-session"
-        );
+        // Only remove wishlist items for this specific user
+        const filtered = allAdminWishlists.filter((w) => w.userId !== userId);
+
+        let customProducts: typeof allProducts = [];
+        try {
+          const rawCustom = localStorage.getItem("dripcyclex.admin.products");
+          if (rawCustom) customProducts = JSON.parse(rawCustom);
+        } catch {
+          /* ignore */
+        }
+        const fullCatalog = [...allProducts, ...customProducts];
 
         const newRecords: UserWishlistRecord[] = productSlugs
           .map((slug) => {
-            const prod = allProducts.find((p) => p.slug === slug);
-            if (!prod) return null;
+            const prod = fullCatalog.find((p) => p.slug === slug || p.id === slug);
+            if (!prod) {
+              const cleanName = slug
+                .split("-")
+                .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+                .join(" ");
+              return {
+                id: `wish-${userId}-${slug}`,
+                userId,
+                userName,
+                userPhone,
+                userEmail,
+                productId: slug,
+                productName: `DRIPCYCLEX ${cleanName}`,
+                category: "T-Shirts",
+                price: 1799,
+                dateAdded: new Date().toISOString().slice(0, 10),
+              };
+            }
             return {
               id: `wish-${userId}-${slug}`,
               userId,
@@ -315,7 +343,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         /* ignore */
       }
     },
-    [currentUser, users]
+    [currentUser, users],
   );
 
   return (
@@ -341,4 +369,3 @@ export function useAuth() {
   if (!ctx) throw new Error("useAuth must be used inside AuthProvider");
   return ctx;
 }
-

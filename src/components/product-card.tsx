@@ -5,13 +5,7 @@ import { formatPrice, type Product } from "@/data/products";
 import { useShop } from "@/lib/shop-store";
 import { cn } from "@/lib/utils";
 
-export function ProductCard({
-  product,
-  badgeNumber,
-}: {
-  product: Product;
-  badgeNumber?: string;
-}) {
+export function ProductCard({ product, badgeNumber }: { product: Product; badgeNumber?: string }) {
   const { wishlist, toggleWishlist, addToCart } = useShop();
   const wished = wishlist.includes(product.slug);
 
@@ -86,9 +80,7 @@ export function ProductCard({
               {product.name}
             </Link>
           </h3>
-          <p className="mt-1 line-clamp-1 text-xs text-zinc-400">
-            {product.fabric}
-          </p>
+          <p className="mt-1 line-clamp-1 text-xs text-zinc-400">{product.fabric}</p>
         </div>
       </div>
 

@@ -5,10 +5,11 @@ export const SUPABASE_URL =
   (import.meta.env["VITE_SUPABASE_URL"] as string) || "https://mmpysgcgoraimtdyawkz.supabase.co";
 
 export const SUPABASE_ANON_KEY =
-  (import.meta.env["VITE_SUPABASE_ANON_KEY"] as string) || "sb_publishable_TwhMvaOssjgUnpPqHyMNAA_fPzPTxn5";
+  (import.meta.env["VITE_SUPABASE_ANON_KEY"] as string) ||
+  "sb_publishable_TwhMvaOssjgUnpPqHyMNAA_fPzPTxn5";
 
 export const isSupabaseConfigured = Boolean(
-  SUPABASE_URL && SUPABASE_ANON_KEY && !SUPABASE_URL.includes("your-project")
+  SUPABASE_URL && SUPABASE_ANON_KEY && !SUPABASE_URL.includes("your-project"),
 );
 
 // SSR-Safe WebSocket transport: Uses native browser WebSocket on client-side,
@@ -44,37 +45,23 @@ export function initSupabaseRealtimeSubscription() {
   try {
     const channel = supabase
       .channel("dripcyclex-global-db-stream")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "cart_items" },
-        (payload) => {
-          broadcastSync("CART_UPDATED", payload);
-        }
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "favorites" },
-        (payload) => {
-          broadcastSync("WISHLIST_UPDATED", payload);
-        }
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "orders" },
-        (payload) => {
-          broadcastSync("CART_UPDATED", payload);
-        }
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "profiles" },
-        (payload) => {
-          broadcastSync("USER_REGISTERED", payload);
-        }
-      )
+      .on("postgres_changes", { event: "*", schema: "public", table: "cart_items" }, (payload) => {
+        broadcastSync("CART_UPDATED", payload);
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "favorites" }, (payload) => {
+        broadcastSync("WISHLIST_UPDATED", payload);
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, (payload) => {
+        broadcastSync("CART_UPDATED", payload);
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, (payload) => {
+        broadcastSync("USER_REGISTERED", payload);
+      })
       .subscribe((status) => {
         if (status === "SUBSCRIBED") {
-          console.log("[DRIPCYCLEX] Supabase Realtime WebSocket Active: https://mmpysgcgoraimtdyawkz.supabase.co");
+          console.log(
+            "[DRIPCYCLEX] Supabase Realtime WebSocket Active: https://mmpysgcgoraimtdyawkz.supabase.co",
+          );
         }
       });
 

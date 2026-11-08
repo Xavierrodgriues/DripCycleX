@@ -1,6 +1,15 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { useAuth } from "@/lib/auth-store";
-import { products } from "@/data/products";
+import { products as staticProducts } from "@/data/products";
 import { broadcastSync } from "@/lib/sync-channel";
 
 export type CartLine = {
@@ -23,6 +32,7 @@ type ShopState = {
   toggleWishlist: (slug: string) => void;
   cartCount: number;
   cartTotal: number;
+  reloadFromStorage: () => void;
 };
 
 const ShopContext = createContext<ShopState | null>(null);
@@ -30,76 +40,175 @@ const ShopContext = createContext<ShopState | null>(null);
 const CART_KEY = "dripcyclex.cart";
 const WISH_KEY = "dripcyclex.wishlist";
 
+function readLocalCart(): CartLine[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(CART_KEY) || localStorage.getItem("hemmlock.cart");
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function readLocalWishlist(): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(WISH_KEY) || localStorage.getItem("hemmlock.wishlist");
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
 export function ShopProvider({ children }: { children: ReactNode }) {
-  // Synchronous lazy state initializers prevent blank mount race conditions
-  const [cart, setCart] = useState<CartLine[]>(() => {
-    try {
-      const c = localStorage.getItem(CART_KEY) || localStorage.getItem("hemmlock.cart");
-      return c ? JSON.parse(c) : [];
-    } catch {
-      return [];
-    }
-  });
-
-  const [wishlist, setWishlist] = useState<string[]>(() => {
-    try {
-      const w = localStorage.getItem(WISH_KEY) || localStorage.getItem("hemmlock.wishlist");
-      return w ? JSON.parse(w) : [];
-    } catch {
-      return [];
-    }
-  });
-
+  const [cart, setCart] = useState<CartLine[]>(readLocalCart);
+  const [wishlist, setWishlist] = useState<string[]>(readLocalWishlist);
   const { syncCartToAdmin, syncWishlistToAdmin } = useAuth();
+  const isSelfUpdate = useRef(false);
 
-  // Save cart to storage and sync to admin pipeline
+  const reloadFromStorage = useCallback(() => {
+    setCart(readLocalCart());
+    setWishlist(readLocalWishlist());
+  }, []);
+
+  // Listen to cross-tab broadcast events and storage events for real-time reactivity
   useEffect(() => {
-    try {
-      localStorage.setItem(CART_KEY, JSON.stringify(cart));
-      localStorage.setItem("hemmlock.cart", JSON.stringify(cart));
-    } catch {
-      /* ignore */
-    }
-    syncCartToAdmin(cart);
-    broadcastSync("CART_UPDATED", { count: cart.length });
-  }, [cart, syncCartToAdmin]);
+    if (typeof window === "undefined") return;
 
-  // Save wishlist to storage and sync to admin pipeline
-  useEffect(() => {
-    try {
-      localStorage.setItem(WISH_KEY, JSON.stringify(wishlist));
-      localStorage.setItem("hemmlock.wishlist", JSON.stringify(wishlist));
-    } catch {
-      /* ignore */
-    }
-    syncWishlistToAdmin(wishlist, products);
-    broadcastSync("WISHLIST_UPDATED", { count: wishlist.length });
-  }, [wishlist, syncWishlistToAdmin]);
-
-  const addToCart = useCallback((line: Omit<CartLine, "id">) => {
-    const id = `${line.slug}-${line.size}-${line.color}`;
-    setCart((prev) => {
-      const found = prev.find((l) => l.id === id);
-      if (found) {
-        return prev.map((l) => (l.id === id ? { ...l, qty: l.qty + line.qty } : l));
+    const handleStorageEvent = (e: StorageEvent) => {
+      if (e.key === CART_KEY || e.key === "hemmlock.cart" || e.key === null) {
+        setCart(readLocalCart());
       }
-      return [...prev, { ...line, id }];
-    });
+      if (e.key === WISH_KEY || e.key === "hemmlock.wishlist" || e.key === null) {
+        setWishlist(readLocalWishlist());
+      }
+    };
+
+    const handleCustomSync = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      const type = customEvent.detail?.type;
+      if (type === "CART_UPDATED" && !isSelfUpdate.current) {
+        setCart(readLocalCart());
+      } else if (type === "WISHLIST_UPDATED" && !isSelfUpdate.current) {
+        setWishlist(readLocalWishlist());
+      }
+    };
+
+    window.addEventListener("storage", handleStorageEvent);
+    window.addEventListener("dripcyclex_internal_sync", handleCustomSync);
+
+    // Cross-tab BroadcastChannel listener
+    let bc: BroadcastChannel | null = null;
+    try {
+      if ("BroadcastChannel" in window) {
+        bc = new BroadcastChannel("dripcyclex_realtime_stream");
+        bc.onmessage = (msg) => {
+          if (msg.data?.type === "CART_UPDATED" && !isSelfUpdate.current) {
+            setCart(readLocalCart());
+          } else if (msg.data?.type === "WISHLIST_UPDATED" && !isSelfUpdate.current) {
+            setWishlist(readLocalWishlist());
+          }
+        };
+      }
+    } catch {
+      /* ignore */
+    }
+
+    return () => {
+      window.removeEventListener("storage", handleStorageEvent);
+      window.removeEventListener("dripcyclex_internal_sync", handleCustomSync);
+      if (bc) bc.close();
+    };
   }, []);
 
-  const removeLine = useCallback((id: string) => {
-    setCart((prev) => prev.filter((l) => l.id !== id));
-  }, []);
+  // Save changes and broadcast when cart is modified by user action
+  const persistCart = useCallback(
+    (newCart: CartLine[]) => {
+      isSelfUpdate.current = true;
+      try {
+        localStorage.setItem(CART_KEY, JSON.stringify(newCart));
+        localStorage.setItem("hemmlock.cart", JSON.stringify(newCart));
+      } catch {
+        /* ignore */
+      }
+      syncCartToAdmin(newCart);
+      broadcastSync("CART_UPDATED", { count: newCart.length });
+      setTimeout(() => {
+        isSelfUpdate.current = false;
+      }, 50);
+    },
+    [syncCartToAdmin],
+  );
 
-  const setQty = useCallback((id: string, qty: number) => {
-    setCart((prev) =>
-      qty <= 0 ? prev.filter((l) => l.id !== id) : prev.map((l) => (l.id === id ? { ...l, qty } : l)),
-    );
-  }, []);
+  // Save changes and broadcast when wishlist is modified by user action
+  const persistWishlist = useCallback(
+    (newWishlist: string[]) => {
+      isSelfUpdate.current = true;
+      try {
+        localStorage.setItem(WISH_KEY, JSON.stringify(newWishlist));
+        localStorage.setItem("hemmlock.wishlist", JSON.stringify(newWishlist));
+      } catch {
+        /* ignore */
+      }
+      syncWishlistToAdmin(newWishlist, staticProducts);
+      broadcastSync("WISHLIST_UPDATED", { count: newWishlist.length });
+      setTimeout(() => {
+        isSelfUpdate.current = false;
+      }, 50);
+    },
+    [syncWishlistToAdmin],
+  );
 
-  const toggleWishlist = useCallback((slug: string) => {
-    setWishlist((prev) => (prev.includes(slug) ? prev.filter((s) => s !== slug) : [...prev, slug]));
-  }, []);
+  const addToCart = useCallback(
+    (line: Omit<CartLine, "id">) => {
+      const id = `${line.slug}-${line.size}-${line.color}`;
+      setCart((prev) => {
+        const found = prev.find((l) => l.id === id);
+        const next = found
+          ? prev.map((l) => (l.id === id ? { ...l, qty: l.qty + line.qty } : l))
+          : [...prev, { ...line, id }];
+        persistCart(next);
+        return next;
+      });
+    },
+    [persistCart],
+  );
+
+  const removeLine = useCallback(
+    (id: string) => {
+      setCart((prev) => {
+        const next = prev.filter((l) => l.id !== id);
+        persistCart(next);
+        return next;
+      });
+    },
+    [persistCart],
+  );
+
+  const setQty = useCallback(
+    (id: string, qty: number) => {
+      setCart((prev) => {
+        const next =
+          qty <= 0
+            ? prev.filter((l) => l.id !== id)
+            : prev.map((l) => (l.id === id ? { ...l, qty } : l));
+        persistCart(next);
+        return next;
+      });
+    },
+    [persistCart],
+  );
+
+  const toggleWishlist = useCallback(
+    (slug: string) => {
+      setWishlist((prev) => {
+        const next = prev.includes(slug) ? prev.filter((s) => s !== slug) : [...prev, slug];
+        persistWishlist(next);
+        return next;
+      });
+    },
+    [persistWishlist],
+  );
 
   const value = useMemo<ShopState>(
     () => ({
@@ -111,8 +220,9 @@ export function ShopProvider({ children }: { children: ReactNode }) {
       toggleWishlist,
       cartCount: cart.reduce((n, l) => n + l.qty, 0),
       cartTotal: cart.reduce((n, l) => n + l.qty * l.price, 0),
+      reloadFromStorage,
     }),
-    [cart, wishlist, addToCart, removeLine, setQty, toggleWishlist],
+    [cart, wishlist, addToCart, removeLine, setQty, toggleWishlist, reloadFromStorage],
   );
 
   return <ShopContext.Provider value={value}>{children}</ShopContext.Provider>;

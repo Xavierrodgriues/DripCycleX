@@ -29,7 +29,12 @@ import {
 import { toast } from "sonner";
 
 import { DripcycleXLogo } from "@/components/logo";
-import { products as initialProducts, formatPrice, type Product, type Category } from "@/data/products";
+import {
+  products as initialProducts,
+  formatPrice,
+  type Product,
+  type Category,
+} from "@/data/products";
 import { useShop } from "@/lib/shop-store";
 import {
   useAuth,
@@ -105,7 +110,9 @@ export function AdminRouteComponent() {
       onLogout={() => {
         sessionStorage.removeItem("dripcyclex.admin.auth");
         setIsAuthenticated(false);
-        toast.info("Session Closed", { description: "You have been logged out of the admin panel." });
+        toast.info("Session Closed", {
+          description: "You have been logged out of the admin panel.",
+        });
       }}
     />
   );
@@ -132,7 +139,8 @@ function AdminLoginPage({
 
     setTimeout(() => {
       setIsLoading(false);
-      const isUsernameValid = loginUser.trim().toLowerCase() === credentials.username.trim().toLowerCase();
+      const isUsernameValid =
+        loginUser.trim().toLowerCase() === credentials.username.trim().toLowerCase();
       const isPasswordValid = loginPass === credentials.password;
 
       if (isUsernameValid && isPasswordValid) {
@@ -168,8 +176,8 @@ function AdminLoginPage({
             RESTRICTED ACCESS
           </div>
 
-          <h1 className="text-2xl sm:text-3xl font-black uppercase tracking-widest text-white">
-            DRIPCYCLEX
+          <h1 className="font-brand text-xl sm:text-2xl font-black uppercase tracking-[0.24em] text-white">
+            DRIPCYCLE<span className="text-red-500 font-black">X</span>
           </h1>
           <p className="mt-1 text-xs text-zinc-400">
             Administrative Control Center // Authentication Gate
@@ -266,7 +274,7 @@ function AdminDashboard({
   onUpdateCredentials: (newCreds: StoredCredentials) => void;
   onLogout: () => void;
 }) {
-  const { cart, wishlist, removeLine, toggleWishlist } = useShop();
+  const { cart, wishlist, removeLine, toggleWishlist, reloadFromStorage } = useShop();
   const { users: authUsers, currentUser } = useAuth();
 
   const [activeTab, setActiveTab] = useState<ActiveTab>("overview");
@@ -275,21 +283,26 @@ function AdminDashboard({
 
   // Real-Time Cross-Tab Event Stream (BroadcastChannel + Storage Event Listener)
   const realtimeTick = useRealtimeSync(
-    useCallback((payload: SyncPayload) => {
-      if (payload.type === "CART_UPDATED") {
-        toast.info("⚡ Live Cart Stream", {
-          description: "Shopper updated bag on storefront.",
-        });
-      } else if (payload.type === "WISHLIST_UPDATED") {
-        toast.info("⚡ Live Wishlist Stream", {
-          description: "Shopper saved silhouette to archive.",
-        });
-      } else if (payload.type === "USER_REGISTERED") {
-        toast.success("⚡ Live Client Registration", {
-          description: "New customer profile registered on storefront.",
-        });
-      }
-    }, [])
+    useCallback(
+      (payload: SyncPayload) => {
+        setStorageVersion((v) => v + 1);
+        reloadFromStorage();
+        if (payload.type === "CART_UPDATED") {
+          toast.info("⚡ Live Cart Stream", {
+            description: "Shopper updated bag on storefront.",
+          });
+        } else if (payload.type === "WISHLIST_UPDATED") {
+          toast.info("⚡ Live Wishlist Stream", {
+            description: "Shopper saved silhouette to archive.",
+          });
+        } else if (payload.type === "USER_REGISTERED") {
+          toast.success("⚡ Live Client Registration", {
+            description: "New customer profile registered on storefront.",
+          });
+        }
+      },
+      [reloadFromStorage],
+    ),
   );
 
   // Products State
@@ -349,43 +362,49 @@ function AdminDashboard({
     let liveLines = cart;
     if (liveLines.length === 0) {
       try {
-        const rawLive = localStorage.getItem("dripcyclex.cart") || localStorage.getItem("hemmlock.cart");
+        const rawLive =
+          localStorage.getItem("dripcyclex.cart") || localStorage.getItem("hemmlock.cart");
         if (rawLive) liveLines = JSON.parse(rawLive);
       } catch {
         /* ignore */
       }
     }
 
-    if (liveLines.length > 0) {
-      const activeUser = currentUser || (usersList.length > 0 ? usersList[0] : null);
-      const userId = activeUser ? activeUser.id : "live-storefront-session";
-      const userName = activeUser ? activeUser.name : "Active Shopper (Storefront)";
-      const userPhone = activeUser ? activeUser.phone : "+91 84697 11940";
-      const userEmail = activeUser ? activeUser.email : "shopper@dripcyclex.com";
+    const activeUser = currentUser || (usersList.length > 0 ? usersList[0] : null);
+    const userId = activeUser ? activeUser.id : "guest-visitor";
+    const userName = activeUser ? activeUser.name : "Active Shopper (Storefront)";
+    const userPhone = activeUser ? activeUser.phone : "+91 84697 11940";
+    const userEmail = activeUser ? activeUser.email : "shopper@dripcyclex.com";
 
-      const otherStored = stored.filter(
-        (c) => c.userId !== userId && c.userId !== "guest-visitor" && c.userId !== "live-storefront-session"
-      );
+    const liveRecords: UserCartRecord[] = liveLines.map((line, idx) => ({
+      id: `cart-${userId}-${idx}-${line.size}-${line.color}`,
+      userId,
+      userName,
+      userPhone,
+      userEmail,
+      productName: line.name,
+      size: line.size,
+      color: line.color,
+      qty: line.qty,
+      unitPrice: line.price,
+      lineTotal: line.qty * line.price,
+      lastActive: "Active Now",
+    }));
 
-      const liveRecords: UserCartRecord[] = liveLines.map((line, idx) => ({
-        id: `cart-${userId}-${idx}-${line.size}-${line.color}`,
-        userId,
-        userName,
-        userPhone,
-        userEmail,
-        productName: line.name,
-        size: line.size,
-        color: line.color,
-        qty: line.qty,
-        unitPrice: line.price,
-        lineTotal: line.qty * line.price,
-        lastActive: "Active Now",
-      }));
-
-      return [...liveRecords, ...otherStored];
+    // Merge stored and liveRecords by composite key to prevent duplicates
+    const map = new Map<string, UserCartRecord>();
+    for (const item of stored) {
+      const key = `${item.userId}_${item.productName}_${item.size}_${item.color}`;
+      map.set(key, item);
     }
-
-    return stored;
+    for (const item of liveRecords) {
+      const key = `${item.userId}_${item.productName}_${item.size}_${item.color}`;
+      map.set(key, item);
+      if (item.userId !== "guest-visitor") {
+        map.delete(`guest-visitor_${item.productName}_${item.size}_${item.color}`);
+      }
+    }
+    return Array.from(map.values());
   }, [cart, currentUser, usersList, storageVersion, realtimeTick]);
 
   // REAL WISHLISTS PIPELINE: Dynamically combines admin records with live storefront wishlist
@@ -401,49 +420,70 @@ function AdminDashboard({
     let liveSlugs = wishlist;
     if (liveSlugs.length === 0) {
       try {
-        const rawWish = localStorage.getItem("dripcyclex.wishlist") || localStorage.getItem("hemmlock.wishlist");
+        const rawWish =
+          localStorage.getItem("dripcyclex.wishlist") || localStorage.getItem("hemmlock.wishlist");
         if (rawWish) liveSlugs = JSON.parse(rawWish);
       } catch {
         /* ignore */
       }
     }
 
-    if (liveSlugs.length > 0) {
-      const activeUser = currentUser || (usersList.length > 0 ? usersList[0] : null);
-      const userId = activeUser ? activeUser.id : "live-storefront-session";
-      const userName = activeUser ? activeUser.name : "Active Shopper (Storefront)";
-      const userPhone = activeUser ? activeUser.phone : "+91 84697 11940";
-      const userEmail = activeUser ? activeUser.email : "shopper@dripcyclex.com";
+    const activeUser = currentUser || (usersList.length > 0 ? usersList[0] : null);
+    const userId = activeUser ? activeUser.id : "guest-visitor";
+    const userName = activeUser ? activeUser.name : "Active Shopper (Storefront)";
+    const userPhone = activeUser ? activeUser.phone : "+91 84697 11940";
+    const userEmail = activeUser ? activeUser.email : "shopper@dripcyclex.com";
 
-      const otherStored = stored.filter(
-        (w) => w.userId !== userId && w.userId !== "guest-visitor" && w.userId !== "live-storefront-session"
-      );
-
-      const liveRecords: UserWishlistRecord[] = liveSlugs
-        .map((slug) => {
-          const prod =
-            productsList.find((p) => p.slug === slug) ||
-            initialProducts.find((p) => p.slug === slug);
-          if (!prod) return null;
+    const allProds = [...productsList, ...initialProducts];
+    const liveRecords: UserWishlistRecord[] = liveSlugs
+      .map((slug) => {
+        const prod = allProds.find((p) => p.slug === slug || p.id === slug);
+        if (!prod) {
+          const cleanName = slug
+            .split("-")
+            .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+            .join(" ");
           return {
             id: `wish-${userId}-${slug}`,
             userId,
             userName,
             userPhone,
             userEmail,
-            productId: prod.id,
-            productName: prod.name,
-            category: prod.category,
-            price: prod.price,
+            productId: slug,
+            productName: `DRIPCYCLEX ${cleanName}`,
+            category: "T-Shirts" as Category,
+            price: 1799,
             dateAdded: new Date().toISOString().slice(0, 10),
           };
-        })
-        .filter(Boolean) as UserWishlistRecord[];
+        }
+        return {
+          id: `wish-${userId}-${slug}`,
+          userId,
+          userName,
+          userPhone,
+          userEmail,
+          productId: prod.id,
+          productName: prod.name,
+          category: prod.category,
+          price: prod.price,
+          dateAdded: new Date().toISOString().slice(0, 10),
+        };
+      })
+      .filter(Boolean) as UserWishlistRecord[];
 
-      return [...liveRecords, ...otherStored];
+    const map = new Map<string, UserWishlistRecord>();
+    for (const item of stored) {
+      const key = `${item.userId}_${item.productName}`;
+      map.set(key, item);
     }
-
-    return stored;
+    for (const item of liveRecords) {
+      const key = `${item.userId}_${item.productName}`;
+      map.set(key, item);
+      if (item.userId !== "guest-visitor") {
+        map.delete(`guest-visitor_${item.productName}`);
+      }
+    }
+    return Array.from(map.values());
   }, [wishlist, currentUser, usersList, productsList, storageVersion, realtimeTick]);
 
   // Calculate real gross pipeline value
@@ -463,9 +503,7 @@ function AdminDashboard({
   };
 
   const handleToggleProductStatus = (id: string) => {
-    setProductsList((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, isNew: !p.isNew } : p))
-    );
+    setProductsList((prev) => prev.map((p) => (p.id === id ? { ...p, isNew: !p.isNew } : p)));
     toast.info("Status Toggled");
   };
 
@@ -491,9 +529,14 @@ function AdminDashboard({
       rating: 5.0,
       reviews: 1,
       images: ["/assets/p1-a.jpg", "/assets/p1-b.jpg"],
-      colors: [{ name: "Pitch Black", hex: "#0a0a0a" }, { name: "Ice White", hex: "#f5f5f5" }],
+      colors: [
+        { name: "Pitch Black", hex: "#0a0a0a" },
+        { name: "Ice White", hex: "#f5f5f5" },
+      ],
       sizes: ["S", "M", "L", "XL", "XXL"],
-      description: (formData.get("description") as string) || "Engineered heavyweight dark streetwear silhouette.",
+      description:
+        (formData.get("description") as string) ||
+        "Engineered heavyweight dark streetwear silhouette.",
       fabric: (formData.get("fabric") as string) || "360 GSM bio-washed luxury cotton",
       care: ["Cold machine wash inside out", "Hang dry in shade"],
       badges: ["Drop 04", "New Arrival"],
@@ -570,7 +613,7 @@ function AdminDashboard({
       });
       try {
         const stored: UserCartRecord[] = JSON.parse(
-          localStorage.getItem("dripcyclex.admin.carts") || "[]"
+          localStorage.getItem("dripcyclex.admin.carts") || "[]",
         );
         const filtered = stored.filter((c) => c.id !== id);
         localStorage.setItem("dripcyclex.admin.carts", JSON.stringify(filtered));
@@ -592,7 +635,7 @@ function AdminDashboard({
       });
       try {
         const stored: UserWishlistRecord[] = JSON.parse(
-          localStorage.getItem("dripcyclex.admin.wishlists") || "[]"
+          localStorage.getItem("dripcyclex.admin.wishlists") || "[]",
         );
         const filtered = stored.filter((w) => w.id !== id);
         localStorage.setItem("dripcyclex.admin.wishlists", JSON.stringify(filtered));
@@ -610,8 +653,12 @@ function AdminDashboard({
     const fd = new FormData(e.currentTarget);
     const userId = (fd.get("userId") as string) || "manual-client";
     const selectedUser = usersList.find((u) => u.id === userId);
-    const userName = selectedUser ? selectedUser.name : ((fd.get("customName") as string) || "Client");
-    const userPhone = selectedUser ? selectedUser.phone : ((fd.get("customPhone") as string) || "+91 84697 11940");
+    const userName = selectedUser
+      ? selectedUser.name
+      : (fd.get("customName") as string) || "Client";
+    const userPhone = selectedUser
+      ? selectedUser.phone
+      : (fd.get("customPhone") as string) || "+91 84697 11940";
     const userEmail = selectedUser ? selectedUser.email : "client@dripcyclex.com";
 
     const prodId = fd.get("productId") as string;
@@ -639,7 +686,7 @@ function AdminDashboard({
 
     try {
       const stored: UserCartRecord[] = JSON.parse(
-        localStorage.getItem("dripcyclex.admin.carts") || "[]"
+        localStorage.getItem("dripcyclex.admin.carts") || "[]",
       );
       localStorage.setItem("dripcyclex.admin.carts", JSON.stringify([newRecord, ...stored]));
     } catch {
@@ -659,8 +706,12 @@ function AdminDashboard({
     const fd = new FormData(e.currentTarget);
     const userId = (fd.get("userId") as string) || "manual-client";
     const selectedUser = usersList.find((u) => u.id === userId);
-    const userName = selectedUser ? selectedUser.name : ((fd.get("customName") as string) || "Client");
-    const userPhone = selectedUser ? selectedUser.phone : ((fd.get("customPhone") as string) || "+91 84697 11940");
+    const userName = selectedUser
+      ? selectedUser.name
+      : (fd.get("customName") as string) || "Client";
+    const userPhone = selectedUser
+      ? selectedUser.phone
+      : (fd.get("customPhone") as string) || "+91 84697 11940";
     const userEmail = selectedUser ? selectedUser.email : "client@dripcyclex.com";
 
     const prodId = fd.get("productId") as string;
@@ -682,7 +733,7 @@ function AdminDashboard({
 
     try {
       const stored: UserWishlistRecord[] = JSON.parse(
-        localStorage.getItem("dripcyclex.admin.wishlists") || "[]"
+        localStorage.getItem("dripcyclex.admin.wishlists") || "[]",
       );
       localStorage.setItem("dripcyclex.admin.wishlists", JSON.stringify([newRecord, ...stored]));
     } catch {
@@ -767,8 +818,8 @@ function AdminDashboard({
             <div className="flex items-center gap-3">
               <DripcycleXLogo className="h-7 w-7 sm:h-8 sm:w-8" />
               <div>
-                <span className="display-xl text-base sm:text-lg font-black tracking-widest text-white block leading-none">
-                  DRIPCYCLEX
+                <span className="font-brand text-sm sm:text-base font-black tracking-[0.2em] text-white block leading-none">
+                  DRIPCYCLE<span className="text-red-500 font-black">X</span>
                 </span>
                 <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-red-500 block mt-0.5">
                   SYSTEM CONTROL // ADMIN
@@ -787,7 +838,9 @@ function AdminDashboard({
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
               </span>
-              <span className="font-bold tracking-wider uppercase text-[10px]">LIVE SYNC ACTIVE</span>
+              <span className="font-bold tracking-wider uppercase text-[10px]">
+                LIVE SYNC ACTIVE
+              </span>
             </div>
 
             <button
@@ -982,16 +1035,24 @@ function AdminDashboard({
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="border border-white/10 bg-zinc-950 p-5 rounded">
                   <div className="flex items-center justify-between text-zinc-400">
-                    <span className="text-xs font-bold uppercase tracking-wider">Cart Pipeline Value</span>
+                    <span className="text-xs font-bold uppercase tracking-wider">
+                      Cart Pipeline Value
+                    </span>
                     <ShoppingBag className="h-4 w-4 text-emerald-400" />
                   </div>
-                  <p className="mt-3 text-2xl font-black text-white">{formatPrice(totalCartPipelineValue)}</p>
-                  <p className="mt-1 text-xs text-zinc-500">{cartsList.length} active items in bags</p>
+                  <p className="mt-3 text-2xl font-black text-white">
+                    {formatPrice(totalCartPipelineValue)}
+                  </p>
+                  <p className="mt-1 text-xs text-zinc-500">
+                    {cartsList.length} active items in bags
+                  </p>
                 </div>
 
                 <div className="border border-white/10 bg-zinc-950 p-5 rounded">
                   <div className="flex items-center justify-between text-zinc-400">
-                    <span className="text-xs font-bold uppercase tracking-wider">Registered Clients</span>
+                    <span className="text-xs font-bold uppercase tracking-wider">
+                      Registered Clients
+                    </span>
                     <Users className="h-4 w-4 text-blue-400" />
                   </div>
                   <p className="mt-3 text-2xl font-black text-white">{usersList.length}</p>
@@ -1011,7 +1072,9 @@ function AdminDashboard({
 
                 <div className="border border-white/10 bg-zinc-950 p-5 rounded">
                   <div className="flex items-center justify-between text-zinc-400">
-                    <span className="text-xs font-bold uppercase tracking-wider">Wishlist Saves</span>
+                    <span className="text-xs font-bold uppercase tracking-wider">
+                      Wishlist Saves
+                    </span>
                     <Heart className="h-4 w-4 text-red-500" />
                   </div>
                   <p className="mt-3 text-2xl font-black text-white">{wishlistsList.length}</p>
@@ -1051,7 +1114,9 @@ function AdminDashboard({
                             </p>
                           </div>
                           <div className="text-right">
-                            <p className="font-bold text-emerald-400">{formatPrice(item.lineTotal)}</p>
+                            <p className="font-bold text-emerald-400">
+                              {formatPrice(item.lineTotal)}
+                            </p>
                             <span className="text-[10px] text-zinc-500">{item.lastActive}</span>
                           </div>
                         </div>
@@ -1075,7 +1140,7 @@ function AdminDashboard({
                   <div className="space-y-3">
                     {productsList.map((prod) => {
                       const count = wishlistsList.filter(
-                        (w) => w.productId === prod.id || w.productName === prod.name
+                        (w) => w.productId === prod.id || w.productName === prod.name,
                       ).length;
                       return (
                         <div
@@ -1089,8 +1154,12 @@ function AdminDashboard({
                               className="h-10 w-8 object-cover border border-white/10"
                             />
                             <div>
-                              <p className="font-bold text-white truncate max-w-[200px] sm:max-w-xs">{prod.name}</p>
-                              <p className="text-zinc-400">{prod.category} · {formatPrice(prod.price)}</p>
+                              <p className="font-bold text-white truncate max-w-[200px] sm:max-w-xs">
+                                {prod.name}
+                              </p>
+                              <p className="text-zinc-400">
+                                {prod.category} · {formatPrice(prod.price)}
+                              </p>
                             </div>
                           </div>
                           <span className="inline-flex items-center gap-1 font-mono font-bold text-red-400 bg-red-950/50 px-2 py-1 rounded border border-red-500/20">
@@ -1154,7 +1223,9 @@ function AdminDashboard({
                             />
                             <div>
                               <p className="font-bold text-white text-sm">{product.name}</p>
-                              <p className="text-[11px] text-zinc-500 font-mono">ID: {product.id} · {product.fabric.slice(0, 32)}...</p>
+                              <p className="text-[11px] text-zinc-500 font-mono">
+                                ID: {product.id} · {product.fabric.slice(0, 32)}...
+                              </p>
                             </div>
                           </div>
                         </td>
@@ -1188,7 +1259,9 @@ function AdminDashboard({
                                 : "bg-zinc-900 text-zinc-400 border-white/10"
                             }`}
                           >
-                            <span className={`h-1.5 w-1.5 rounded-full ${product.isNew ? "bg-emerald-400" : "bg-zinc-500"}`} />
+                            <span
+                              className={`h-1.5 w-1.5 rounded-full ${product.isNew ? "bg-emerald-400" : "bg-zinc-500"}`}
+                            />
                             {product.isNew ? "Active Drop" : "Archived"}
                           </button>
                         </td>
@@ -1229,7 +1302,8 @@ function AdminDashboard({
                     Registered Client Accounts
                   </h1>
                   <p className="mt-1 text-sm text-zinc-400">
-                    Real accounts created by customers via the storefront registration portal (/auth).
+                    Real accounts created by customers via the storefront registration portal
+                    (/auth).
                   </p>
                 </div>
                 <button
@@ -1244,9 +1318,12 @@ function AdminDashboard({
               {usersList.length === 0 ? (
                 <div className="border border-white/10 rounded-xl bg-black p-12 text-center">
                   <Users className="h-12 w-12 mx-auto text-zinc-600 mb-3" />
-                  <p className="text-base font-bold text-white">No Registered Customer Accounts Yet</p>
+                  <p className="text-base font-bold text-white">
+                    No Registered Customer Accounts Yet
+                  </p>
                   <p className="text-xs text-zinc-400 mt-1 max-w-md mx-auto">
-                    When visitors create an account on the storefront (/auth), their full name, phone number, email, and shipping address will automatically appear here.
+                    When visitors create an account on the storefront (/auth), their full name,
+                    phone number, email, and shipping address will automatically appear here.
                   </p>
                 </div>
               ) : (
@@ -1267,7 +1344,9 @@ function AdminDashboard({
                         <tr key={user.id} className="hover:bg-white/5 transition-colors">
                           <td className="py-4 px-4">
                             <p className="font-bold text-white text-sm">{user.name}</p>
-                            <span className="text-[11px] text-zinc-500 font-mono">ID: {user.id}</span>
+                            <span className="text-[11px] text-zinc-500 font-mono">
+                              ID: {user.id}
+                            </span>
                           </td>
                           <td className="py-4 px-4 text-zinc-300">
                             <div className="flex flex-col gap-0.5">
@@ -1281,7 +1360,9 @@ function AdminDashboard({
                           </td>
                           <td className="py-4 px-4 text-zinc-300 max-w-xs">
                             <p className="truncate text-white">{user.address}</p>
-                            <p className="text-[11px] text-zinc-500">{user.city}, {user.zipCode}</p>
+                            <p className="text-[11px] text-zinc-500">
+                              {user.city}, {user.zipCode}
+                            </p>
                           </td>
                           <td className="py-4 px-4">
                             <span
@@ -1358,9 +1439,12 @@ function AdminDashboard({
               {cartsList.length === 0 ? (
                 <div className="border border-white/10 rounded-xl bg-black p-12 text-center">
                   <ShoppingBag className="h-12 w-12 mx-auto text-zinc-600 mb-3" />
-                  <p className="text-base font-bold text-white">No Items Currently in Customer Bags</p>
+                  <p className="text-base font-bold text-white">
+                    No Items Currently in Customer Bags
+                  </p>
                   <p className="text-xs text-zinc-400 mt-1 max-w-md mx-auto">
-                    When visitors or registered clients add pieces to their shopping bag on the website, they will immediately appear here with item details, sizes, and totals.
+                    When visitors or registered clients add pieces to their shopping bag on the
+                    website, they will immediately appear here with item details, sizes, and totals.
                   </p>
                 </div>
               ) : (
@@ -1381,25 +1465,31 @@ function AdminDashboard({
                         <tr key={cartLine.id} className="hover:bg-white/5 transition-colors">
                           <td className="py-4 px-4">
                             <p className="font-bold text-white text-sm">{cartLine.userName}</p>
-                            <span className="text-zinc-500 font-mono text-[11px]">{cartLine.userPhone}</span>
+                            <span className="text-zinc-500 font-mono text-[11px]">
+                              {cartLine.userPhone}
+                            </span>
                           </td>
                           <td className="py-4 px-4">
                             <p className="font-bold text-white">{cartLine.productName}</p>
                             <p className="text-zinc-400 text-[11px]">
-                              Size: <span className="text-white font-mono">{cartLine.size}</span> · Color:{" "}
-                              <span className="text-white">{cartLine.color}</span>
+                              Size: <span className="text-white font-mono">{cartLine.size}</span> ·
+                              Color: <span className="text-white">{cartLine.color}</span>
                             </p>
                           </td>
-                          <td className="py-4 px-4 font-mono font-bold text-white">{cartLine.qty}</td>
+                          <td className="py-4 px-4 font-mono font-bold text-white">
+                            {cartLine.qty}
+                          </td>
                           <td className="py-4 px-4 font-bold text-emerald-400 text-sm">
                             {formatPrice(cartLine.lineTotal)}
                           </td>
-                          <td className="py-4 px-4 text-zinc-400 font-mono">{cartLine.lastActive}</td>
+                          <td className="py-4 px-4 text-zinc-400 font-mono">
+                            {cartLine.lastActive}
+                          </td>
                           <td className="py-4 px-4 text-right">
                             <div className="inline-flex items-center gap-2">
                               <a
                                 href={`https://wa.me/${DRIPCYCLEX_WHATSAPP_PHONE}?text=${encodeURIComponent(
-                                  `Hello ${cartLine.userName}, we noticed you have ${cartLine.productName} (Size ${cartLine.size}) in your DRIPCYCLEX bag. Would you like assistance with completing your order?`
+                                  `Hello ${cartLine.userName}, we noticed you have ${cartLine.productName} (Size ${cartLine.size}) in your DRIPCYCLEX bag. Would you like assistance with completing your order?`,
                                 )}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
@@ -1452,9 +1542,12 @@ function AdminDashboard({
               {wishlistsList.length === 0 ? (
                 <div className="border border-white/10 rounded-xl bg-black p-12 text-center">
                   <Heart className="h-12 w-12 mx-auto text-zinc-600 mb-3" />
-                  <p className="text-base font-bold text-white">No Saved Archive Items Recorded Yet</p>
+                  <p className="text-base font-bold text-white">
+                    No Saved Archive Items Recorded Yet
+                  </p>
                   <p className="text-xs text-zinc-400 mt-1 max-w-md mx-auto">
-                    When visitors or registered clients click the heart icon on any silhouette, their saved item and contact details will appear here.
+                    When visitors or registered clients click the heart icon on any silhouette,
+                    their saved item and contact details will appear here.
                   </p>
                 </div>
               ) : (
@@ -1483,14 +1576,16 @@ function AdminDashboard({
                           <td className="py-4 px-4 font-bold text-white">{formatPrice(w.price)}</td>
                           <td className="py-4 px-4">
                             <p className="font-bold text-white">{w.userName}</p>
-                            <span className="text-zinc-500 font-mono text-[11px]">{w.userPhone}</span>
+                            <span className="text-zinc-500 font-mono text-[11px]">
+                              {w.userPhone}
+                            </span>
                           </td>
                           <td className="py-4 px-4 text-zinc-400 font-mono">{w.dateAdded}</td>
                           <td className="py-4 px-4 text-right">
                             <div className="inline-flex items-center gap-2">
                               <a
                                 href={`https://wa.me/${DRIPCYCLEX_WHATSAPP_PHONE}?text=${encodeURIComponent(
-                                  `Hi ${w.userName}, your saved silhouette ${w.productName} is ready in the DRIPCYCLEX capsule! Would you like priority dispatch?`
+                                  `Hi ${w.userName}, your saved silhouette ${w.productName} is ready in the DRIPCYCLEX capsule! Would you like priority dispatch?`,
                                 )}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
@@ -1534,7 +1629,9 @@ function AdminDashboard({
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <ShieldCheck className="h-5 w-5 text-emerald-400" />
-                    <span className="font-bold text-sm text-white">Current Access Identification</span>
+                    <span className="font-bold text-sm text-white">
+                      Current Access Identification
+                    </span>
                   </div>
                   <span className="px-2 py-0.5 rounded text-[10px] font-mono uppercase bg-emerald-950 text-emerald-400 border border-emerald-500/30">
                     Encrypted Session
@@ -1542,12 +1639,20 @@ function AdminDashboard({
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs pt-2 border-t border-white/10">
                   <div>
-                    <span className="text-zinc-400 block font-bold uppercase tracking-wider">Active Login Name</span>
-                    <span className="text-base font-mono font-bold text-white mt-1 block">{credentials.username}</span>
+                    <span className="text-zinc-400 block font-bold uppercase tracking-wider">
+                      Active Login Name
+                    </span>
+                    <span className="text-base font-mono font-bold text-white mt-1 block">
+                      {credentials.username}
+                    </span>
                   </div>
                   <div>
-                    <span className="text-zinc-400 block font-bold uppercase tracking-wider">Password Protection</span>
-                    <span className="text-base font-mono font-bold text-zinc-400 mt-1 block">••••••••••••</span>
+                    <span className="text-zinc-400 block font-bold uppercase tracking-wider">
+                      Password Protection
+                    </span>
+                    <span className="text-base font-mono font-bold text-zinc-400 mt-1 block">
+                      ••••••••••••
+                    </span>
                   </div>
                 </div>
               </div>
@@ -1558,8 +1663,12 @@ function AdminDashboard({
                   <div className="flex items-center gap-2.5">
                     <Database className="h-5 w-5 text-emerald-400" />
                     <div>
-                      <span className="font-bold text-sm text-white block">Supabase Cloud Database</span>
-                      <span className="text-[11px] text-zinc-400">PostgreSQL + Realtime WebSockets</span>
+                      <span className="font-bold text-sm text-white block">
+                        Supabase Cloud Database
+                      </span>
+                      <span className="text-[11px] text-zinc-400">
+                        PostgreSQL + Realtime WebSockets
+                      </span>
                     </div>
                   </div>
                   <span className="px-2.5 py-0.5 rounded text-[10px] font-mono uppercase bg-emerald-950 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5">
@@ -1569,19 +1678,31 @@ function AdminDashboard({
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs pt-3 border-t border-white/10 font-mono">
                   <div>
-                    <span className="text-zinc-500 block text-[10px] uppercase font-bold">Project URL</span>
-                    <span className="text-zinc-200 truncate block mt-0.5">https://mmpysgcgoraimtdyawkz.supabase.co</span>
+                    <span className="text-zinc-500 block text-[10px] uppercase font-bold">
+                      Project URL
+                    </span>
+                    <span className="text-zinc-200 truncate block mt-0.5">
+                      https://mmpysgcgoraimtdyawkz.supabase.co
+                    </span>
                   </div>
                   <div>
-                    <span className="text-zinc-500 block text-[10px] uppercase font-bold">Project ID</span>
+                    <span className="text-zinc-500 block text-[10px] uppercase font-bold">
+                      Project ID
+                    </span>
                     <span className="text-zinc-200 block mt-0.5">mmpysgcgoraimtdyawkz</span>
                   </div>
                   <div>
-                    <span className="text-zinc-500 block text-[10px] uppercase font-bold">Publishable Key</span>
-                    <span className="text-emerald-400 block mt-0.5">sb_publishable_Twh...fPzPTxn5</span>
+                    <span className="text-zinc-500 block text-[10px] uppercase font-bold">
+                      Publishable Key
+                    </span>
+                    <span className="text-emerald-400 block mt-0.5">
+                      sb_publishable_Twh...fPzPTxn5
+                    </span>
                   </div>
                   <div>
-                    <span className="text-zinc-500 block text-[10px] uppercase font-bold">Schema Migration</span>
+                    <span className="text-zinc-500 block text-[10px] uppercase font-bold">
+                      Schema Migration
+                    </span>
                     <span className="text-zinc-200 block mt-0.5">supabase/schema.sql (Active)</span>
                   </div>
                 </div>
@@ -1812,9 +1933,7 @@ function AdminDashboard({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
           <div className="w-full max-w-lg border border-white/20 bg-zinc-950 p-6 rounded shadow-2xl text-white my-8">
             <div className="flex items-center justify-between border-b border-white/10 pb-4">
-              <h3 className="text-lg font-bold uppercase tracking-wider">
-                Create New Silhouette
-              </h3>
+              <h3 className="text-lg font-bold uppercase tracking-wider">Create New Silhouette</h3>
               <button
                 onClick={() => setIsAddProductOpen(false)}
                 className="text-zinc-400 hover:text-white"

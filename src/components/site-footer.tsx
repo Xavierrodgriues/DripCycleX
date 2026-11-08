@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Instagram, Facebook, Youtube } from "lucide-react";
+import { Instagram, Facebook } from "lucide-react";
 import { DripcycleXLogo } from "@/components/logo";
 
 const columns = [
@@ -30,23 +30,34 @@ export function SiteFooter() {
           <div className="max-w-sm">
             <div className="flex items-center gap-3.5">
               <DripcycleXLogo className="h-14 w-14 sm:h-16 sm:w-16" />
-              <span className="display-xl text-2xl sm:text-3xl font-black tracking-wider text-white">
-                DRIPCYCLE<span className="text-red-500">X</span>
+              <span className="font-brand font-black tracking-[0.22em] sm:tracking-[0.26em] text-xl sm:text-2xl text-white uppercase select-none">
+                DRIPCYCLE<span className="text-red-500 font-black">X</span>
               </span>
             </div>
             <p className="mt-5 text-sm leading-relaxed text-zinc-400">
-              Dark luxury streetwear engineered in India. Built for those who dress with architectural intent. Heavyweight cottons, custom trims, zero filler. 100% Direct-to-Consumer Online Exclusive.
+              Dark luxury streetwear engineered in India. Built for those who dress with
+              architectural intent. Heavyweight cottons, custom trims, zero filler. 100%
+              Direct-to-Consumer Online Exclusive.
             </p>
             <div className="mt-6 flex gap-3">
-              {[Instagram, Facebook, Youtube].map((Icon, i) => (
-                <a
-                  key={i}
-                  href="#"
-                  className="grid h-10 w-10 place-items-center border border-white/15 bg-white/5 text-zinc-300 transition-colors hover:border-white hover:bg-white hover:text-black"
-                >
-                  <Icon className="h-4 w-4" />
-                </a>
-              ))}
+              <a
+                href="https://www.instagram.com/dripcyclex/"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Instagram @dripcyclex"
+                className="grid h-10 w-10 place-items-center border border-white/15 bg-white/5 text-zinc-300 transition-colors hover:border-white hover:bg-white hover:text-black"
+              >
+                <Instagram className="h-4 w-4" />
+              </a>
+              <a
+                href="https://www.instagram.com/dripcyclex/"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Facebook @dripcyclex"
+                className="grid h-10 w-10 place-items-center border border-white/15 bg-white/5 text-zinc-300 transition-colors hover:border-white hover:bg-white hover:text-black"
+              >
+                <Facebook className="h-4 w-4" />
+              </a>
             </div>
           </div>
 
@@ -73,7 +84,10 @@ export function SiteFooter() {
             <p className="eyebrow text-white font-bold">Client Support</p>
             <ul className="mt-5 space-y-3 text-sm text-zinc-400">
               <li>
-                <a href="mailto:Dripcyclex@gmail.com" className="text-white font-semibold hover:underline">
+                <a
+                  href="mailto:Dripcyclex@gmail.com"
+                  className="text-white font-semibold hover:underline"
+                >
                   Dripcyclex@gmail.com
                 </a>
               </li>
@@ -93,7 +107,9 @@ export function SiteFooter() {
           <p className="flex items-center gap-2">
             <span>Engineered in India</span>
             <span>•</span>
-            <span>15-day return policy</span>
+            <span>8 Working Days Delivery</span>
+            <span>•</span>
+            <span>7-Day Exchange Policy</span>
           </p>
         </div>
       </div>

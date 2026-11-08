@@ -1,8 +1,26 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
-import { Heart, Menu, Search, ShoppingBag, X, Home, Compass, Grid3x3, Trash2, User } from "lucide-react";
+import {
+  Heart,
+  Menu,
+  Search,
+  ShoppingBag,
+  X,
+  Home,
+  Compass,
+  Grid3x3,
+  Trash2,
+  User,
+} from "lucide-react";
 import { DripcycleXLogo } from "@/components/logo";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetClose } from "@/components/ui/sheet";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+  SheetClose,
+} from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
 import { formatPrice, products } from "@/data/products";
 import { useShop } from "@/lib/shop-store";
@@ -45,7 +63,8 @@ export function SiteHeader() {
   return (
     <>
       <div className="bg-black border-b border-white/10 py-2 text-center text-[11px] font-bold tracking-[0.25em] text-zinc-400 uppercase">
-        TRINITY DROP 01 · FREE SHIPPING OVER ₹1999 · <span className="text-white">LIMITED TO 300 PIECES</span>
+        TRINITY DROP 01 · 8 WORKING DAYS DELIVERY · LOW DELIVERY FEE ·{" "}
+        <span className="text-white">STRICTLY LIMITED PIECES</span>
       </div>
 
       <header
@@ -56,10 +75,14 @@ export function SiteHeader() {
       >
         <div className="mx-auto grid max-w-[1400px] grid-cols-[auto_1fr_auto] items-center gap-3 sm:gap-4 px-4 py-2.5 sm:px-8 lg:px-12">
           {/* Brand Logo & Name */}
-          <Link to="/" className="flex shrink-0 items-center gap-2.5 sm:gap-3.5 group" aria-label="DRIPCYCLEX Home">
+          <Link
+            to="/"
+            className="flex shrink-0 items-center gap-2.5 sm:gap-3.5 group"
+            aria-label="DRIPCYCLEX Home"
+          >
             <DripcycleXLogo className="h-11 w-11 sm:h-14 sm:w-14 lg:h-16 lg:w-16 transition-transform group-hover:scale-105" />
-            <span className="hidden sm:inline-block display-xl truncate text-xl sm:text-2xl lg:text-3xl font-black tracking-wider text-white">
-              DRIPCYCLE<span className="text-red-500">X</span>
+            <span className="hidden sm:inline-block font-brand font-black tracking-[0.22em] sm:tracking-[0.26em] text-lg sm:text-xl lg:text-2xl text-white uppercase select-none transition-colors group-hover:text-zinc-200">
+              DRIPCYCLE<span className="text-red-500 font-black">X</span>
             </span>
           </Link>
 
@@ -87,7 +110,10 @@ export function SiteHeader() {
               >
                 <Search className="h-5 w-5" />
               </SheetTrigger>
-              <SheetContent side="top" className="h-auto bg-zinc-950 border-b border-white/10 text-white">
+              <SheetContent
+                side="top"
+                className="h-auto bg-zinc-950 border-b border-white/10 text-white"
+              >
                 <SheetHeader>
                   <SheetTitle className="display-xl text-2xl text-white">SEARCH CAPSULE</SheetTitle>
                 </SheetHeader>
@@ -107,17 +133,27 @@ export function SiteHeader() {
                           params={{ slug: p.slug }}
                           className="flex items-center gap-3 py-3 transition-colors hover:bg-white/5 px-2 rounded"
                         >
-                          <img src={p.images[0]} alt="" className="h-14 w-11 object-cover border border-white/10" />
+                          <img
+                            src={p.images[0]}
+                            alt=""
+                            className="h-14 w-11 object-cover border border-white/10"
+                          />
                           <div className="min-w-0 flex-1">
-                            <span className="block truncate text-sm font-semibold text-white">{p.name}</span>
+                            <span className="block truncate text-sm font-semibold text-white">
+                              {p.name}
+                            </span>
                             <span className="text-xs text-zinc-400">{p.category}</span>
                           </div>
-                          <span className="text-sm font-bold text-white">{formatPrice(p.price)}</span>
+                          <span className="text-sm font-bold text-white">
+                            {formatPrice(p.price)}
+                          </span>
                         </Link>
                       </li>
                     ))}
                     {query.trim() && results.length === 0 && (
-                      <li className="py-6 text-center text-sm text-zinc-400">No matching pieces found in the Trinity Drop.</li>
+                      <li className="py-6 text-center text-sm text-zinc-400">
+                        No matching pieces found in the Trinity Drop.
+                      </li>
                     )}
                   </ul>
                 </div>
@@ -159,7 +195,11 @@ export function SiteHeader() {
                     <ul className="divide-y divide-white/10">
                       {wishedProducts.map((p) => (
                         <li key={p.id} className="flex items-center gap-3 py-4">
-                          <img src={p.images[0]} alt="" className="h-20 w-16 object-cover border border-white/10" />
+                          <img
+                            src={p.images[0]}
+                            alt=""
+                            className="h-20 w-16 object-cover border border-white/10"
+                          />
                           <div className="min-w-0 flex-1">
                             <Link
                               to="/product/$slug"
@@ -168,9 +208,7 @@ export function SiteHeader() {
                             >
                               {p.name}
                             </Link>
-                            <p className="mt-1 text-sm text-zinc-400">
-                              {formatPrice(p.price)}
-                            </p>
+                            <p className="mt-1 text-sm text-zinc-400">{formatPrice(p.price)}</p>
                           </div>
                           <button
                             aria-label="Remove"
@@ -199,16 +237,24 @@ export function SiteHeader() {
               <SheetContent className="w-full sm:max-w-md bg-zinc-950 border-l border-white/10 text-white flex flex-col justify-between">
                 <div>
                   <SheetHeader>
-                    <SheetTitle className="display-xl text-2xl text-white">YOUR DROP BAG</SheetTitle>
+                    <SheetTitle className="display-xl text-2xl text-white">
+                      YOUR DROP BAG
+                    </SheetTitle>
                   </SheetHeader>
                   <div className="overflow-y-auto px-4 mt-4 max-h-[60vh]">
                     {cart.length === 0 ? (
-                      <div className="py-16 text-center text-sm text-zinc-400">Your bag is empty.</div>
+                      <div className="py-16 text-center text-sm text-zinc-400">
+                        Your bag is empty.
+                      </div>
                     ) : (
                       <ul className="divide-y divide-white/10">
                         {cart.map((line) => (
                           <li key={line.id} className="flex gap-3 py-4">
-                            <img src={line.image} alt="" className="h-24 w-20 object-cover border border-white/10" />
+                            <img
+                              src={line.image}
+                              alt=""
+                              className="h-24 w-20 object-cover border border-white/10"
+                            />
                             <div className="min-w-0 flex-1">
                               <p className="truncate text-sm font-bold text-white">{line.name}</p>
                               <p className="mt-1 text-xs text-zinc-400">
@@ -223,7 +269,9 @@ export function SiteHeader() {
                                   >
                                     −
                                   </button>
-                                  <span className="w-8 text-center text-sm font-bold text-white">{line.qty}</span>
+                                  <span className="w-8 text-center text-sm font-bold text-white">
+                                    {line.qty}
+                                  </span>
                                   <button
                                     className="px-2.5 py-1 text-sm text-zinc-300 hover:text-white"
                                     onClick={() => setQty(line.id, line.qty + 1)}
@@ -267,7 +315,7 @@ export function SiteHeader() {
                               phone: currentUser.phone,
                               address: `${currentUser.address}, ${currentUser.city} - ${currentUser.zipCode}`,
                             }
-                          : undefined
+                          : undefined,
                       )
                     }
                     disabled={cart.length === 0}
@@ -302,8 +350,8 @@ export function SiteHeader() {
                     className="flex items-center gap-3 sm:gap-4"
                   >
                     <DripcycleXLogo className="h-12 w-12 sm:h-14 sm:w-14" />
-                    <span className="display-xl text-2xl sm:text-3xl font-black tracking-wider text-white">
-                      DRIPCYCLE<span className="text-red-500">X</span>
+                    <span className="font-brand font-black tracking-[0.2em] sm:tracking-[0.24em] text-xl sm:text-2xl text-white uppercase select-none">
+                      DRIPCYCLE<span className="text-red-500 font-black">X</span>
                     </span>
                   </Link>
                   <SheetClose asChild>
@@ -346,9 +394,7 @@ export function SiteHeader() {
                                 className="h-12 w-10 rounded object-cover border border-white/10"
                               />
                               <div className="min-w-0 flex-1">
-                                <p className="truncate text-xs font-bold text-white">
-                                  {p.name}
-                                </p>
+                                <p className="truncate text-xs font-bold text-white">{p.name}</p>
                                 <p className="text-xs text-zinc-400">{formatPrice(p.price)}</p>
                               </div>
                             </Link>
@@ -373,7 +419,9 @@ export function SiteHeader() {
                           {currentUser ? currentUser.name : "Sign In / Register"}
                         </p>
                         <p className="text-[10px] text-zinc-400">
-                          {currentUser ? currentUser.phone : "Access your DRIPCYCLEX profile & address"}
+                          {currentUser
+                            ? currentUser.phone
+                            : "Access your DRIPCYCLEX profile & address"}
                         </p>
                       </div>
                     </div>
@@ -410,9 +458,7 @@ export function SiteHeader() {
                     >
                       <div className="flex items-center gap-2.5">
                         <Heart className="h-4 w-4 text-red-500" />
-                        <span className="text-xs font-bold uppercase tracking-wider">
-                          Wishlist
-                        </span>
+                        <span className="text-xs font-bold uppercase tracking-wider">Wishlist</span>
                       </div>
                       {wishlist.length > 0 && (
                         <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-black text-black">
@@ -443,7 +489,7 @@ export function SiteHeader() {
                 {/* Footer Announcement Bar inside Navbar */}
                 <div className="border-t border-white/10 bg-zinc-950 px-5 py-4 text-center sm:px-8">
                   <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-400">
-                    Free shipping over ₹1999 · 15-day return guarantee
+                    Low Delivery Fee · 8 Working Days · 7-Day Exchange Policy*
                   </p>
                   <p className="mt-1 text-[10px] font-medium text-zinc-600">
                     DRIPCYCLEX Redefined Dark Streetwear India

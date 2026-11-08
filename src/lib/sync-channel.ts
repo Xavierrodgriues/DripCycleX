@@ -131,4 +131,3 @@ export function useRealtimeSync(onEvent?: (payload: SyncPayload) => void): numbe
 
   return tick;
 }
-

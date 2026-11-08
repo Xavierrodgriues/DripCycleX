@@ -1,5 +1,14 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowRight, ShieldCheck, Sparkles, Truck, Layers, Flame, Compass, ChevronRight } from "lucide-react";
+import {
+  ArrowRight,
+  ShieldCheck,
+  Sparkles,
+  Truck,
+  Layers,
+  Flame,
+  Compass,
+  ChevronRight,
+} from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -48,12 +57,14 @@ export function Index() {
         <div className="relative z-10 mx-auto w-full max-w-[1400px] px-5 py-24 sm:px-8 lg:px-12">
           <Reveal className="max-w-3xl">
             <h1 className="display-xl text-5xl sm:text-7xl lg:text-8xl leading-[0.88] text-white">
-              BORN IN SHADOW.<br />
+              BORN IN SHADOW.
+              <br />
               <span className="text-zinc-400">ENGINEERED FOR</span> THE STREETS.
             </h1>
 
             <p className="mt-6 text-base sm:text-xl font-normal leading-relaxed text-zinc-300 max-w-2xl">
-              DRIPCYCLEX redefines luxury Indian streetwear. A curated 3-piece capsule cut from 280–420 GSM milled cottons with draconic precision and distressed chrome geometry.
+              DRIPCYCLEX redefines luxury Indian streetwear. A curated 3-piece capsule cut from
+              280–420 GSM milled cottons with draconic precision and distressed chrome geometry.
             </p>
 
             <div className="mt-10 flex flex-wrap gap-4">
@@ -76,19 +87,27 @@ export function Index() {
           <div className="mt-16 grid grid-cols-2 gap-6 sm:grid-cols-4 border-t border-white/15 pt-8 max-w-4xl">
             <div>
               <p className="display-xl text-3xl sm:text-4xl text-white">03</p>
-              <p className="text-[11px] uppercase tracking-widest text-zinc-400 mt-1">Core Silhouettes</p>
+              <p className="text-[11px] uppercase tracking-widest text-zinc-400 mt-1">
+                Core Silhouettes
+              </p>
             </div>
             <div>
               <p className="display-xl text-3xl sm:text-4xl text-white">280–420</p>
-              <p className="text-[11px] uppercase tracking-widest text-zinc-400 mt-1">GSM Heavyweight Milled</p>
+              <p className="text-[11px] uppercase tracking-widest text-zinc-400 mt-1">
+                GSM Heavyweight Milled
+              </p>
             </div>
             <div>
-              <p className="display-xl text-3xl sm:text-4xl text-white">300 PCS</p>
-              <p className="text-[11px] uppercase tracking-widest text-zinc-400 mt-1">Limited Batch Per Style</p>
+              <p className="display-xl text-3xl sm:text-4xl text-white">8 DAYS</p>
+              <p className="text-[11px] uppercase tracking-widest text-zinc-400 mt-1">
+                Working Days Delivery · Low Fee
+              </p>
             </div>
             <div>
               <p className="display-xl text-3xl sm:text-4xl text-white">100%</p>
-              <p className="text-[11px] uppercase tracking-widest text-zinc-400 mt-1">Indian Ethical Craft</p>
+              <p className="text-[11px] uppercase tracking-widest text-zinc-400 mt-1">
+                Indian Ethical Craft
+              </p>
             </div>
           </div>
         </div>
@@ -107,7 +126,7 @@ export function Index() {
               <span className="text-zinc-600">•</span>
               <span>280–420 GSM MILLED COTTON</span>
               <span className="text-zinc-600">•</span>
-              <span>FREE PAN-INDIA DELIVERY</span>
+              <span>8 WORKING DAYS DELIVERY · LOW DELIVERY FEE</span>
               <span className="text-zinc-600">•</span>
               <span>ZERO RESTOCKS ONCE ARCHIVED</span>
               <span className="text-zinc-600">•</span>
@@ -125,8 +144,12 @@ export function Index() {
                 <Truck className="h-6 w-6" />
               </div>
               <div>
-                <h4 className="text-xs font-bold uppercase tracking-wider text-white">Express Pan-India Logistics</h4>
-                <p className="text-xs text-zinc-400 mt-0.5">Complimentary express shipping on all orders over ₹1999</p>
+                <h4 className="text-xs font-bold uppercase tracking-wider text-white">
+                  Pan-India Delivery
+                </h4>
+                <p className="text-xs text-zinc-400 mt-0.5">
+                  Delivered within 8 working days · Low delivery fee across India
+                </p>
               </div>
             </div>
             <div className="flex items-center gap-4 py-2 sm:px-6">
@@ -134,8 +157,12 @@ export function Index() {
                 <ShieldCheck className="h-6 w-6" />
               </div>
               <div>
-                <h4 className="text-xs font-bold uppercase tracking-wider text-white">Architectural Fabric Milling</h4>
-                <p className="text-xs text-zinc-400 mt-0.5">Custom bio-washed heavyweight cotton & brushed fleece</p>
+                <h4 className="text-xs font-bold uppercase tracking-wider text-white">
+                  Architectural Fabric Milling
+                </h4>
+                <p className="text-xs text-zinc-400 mt-0.5">
+                  Custom bio-washed heavyweight cotton & brushed fleece
+                </p>
               </div>
             </div>
             <div className="flex items-center gap-4 py-2 sm:px-6 last:pr-0">
@@ -143,8 +170,12 @@ export function Index() {
                 <Flame className="h-6 w-6 text-red-500" />
               </div>
               <div>
-                <h4 className="text-xs font-bold uppercase tracking-wider text-white">The 3-Piece Capsule</h4>
-                <p className="text-xs text-zinc-400 mt-0.5">Zero dilution. Pure focus on 3 engineered silhouettes</p>
+                <h4 className="text-xs font-bold uppercase tracking-wider text-white">
+                  The 3-Piece Capsule
+                </h4>
+                <p className="text-xs text-zinc-400 mt-0.5">
+                  Zero dilution. Pure focus on 3 engineered silhouettes
+                </p>
               </div>
             </div>
           </div>
@@ -158,14 +189,15 @@ export function Index() {
             <div>
               <div className="flex items-center gap-2">
                 <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
-                <span className="eyebrow text-zinc-400 font-bold">THE 3-PIECE SIGNATURE CAPSULE</span>
+                <span className="eyebrow text-zinc-400 font-bold">
+                  THE 3-PIECE SIGNATURE CAPSULE
+                </span>
               </div>
-              <h2 className="display-xl mt-2 text-4xl sm:text-6xl text-white">
-                THE TRINITY DROP
-              </h2>
+              <h2 className="display-xl mt-2 text-4xl sm:text-6xl text-white">THE TRINITY DROP</h2>
             </div>
             <p className="text-sm text-zinc-400 max-w-md">
-              We eliminated the clutter of endless fast-fashion SKUs. Three singular silhouettes engineered to be the only pieces your dark wardrobe demands.
+              We eliminated the clutter of endless fast-fashion SKUs. Three singular silhouettes
+              engineered to be the only pieces your dark wardrobe demands.
             </p>
           </div>
 
@@ -173,10 +205,7 @@ export function Index() {
           <div className="mt-12 grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
             {products.map((product, index) => (
               <Reveal key={product.id} delay={index * 120}>
-                <ProductCard
-                  product={product}
-                  badgeNumber={`0${index + 1} / 03`}
-                />
+                <ProductCard product={product} badgeNumber={`0${index + 1} / 03`} />
               </Reveal>
             ))}
           </div>
@@ -230,7 +259,9 @@ export function Index() {
 
             <div className="lg:col-span-6 space-y-6">
               <div>
-                <span className="eyebrow text-red-500 font-bold">SILHOUETTE 0{activeGarmentIndex + 1} OF 03</span>
+                <span className="eyebrow text-red-500 font-bold">
+                  SILHOUETTE 0{activeGarmentIndex + 1} OF 03
+                </span>
                 <h3 className="display-xl mt-2 text-3xl sm:text-4xl text-white">
                   {activeGarment.name}
                 </h3>
@@ -239,23 +270,29 @@ export function Index() {
                 </p>
               </div>
 
-              <p className="text-sm text-zinc-300 leading-relaxed">
-                {activeGarment.description}
-              </p>
+              <p className="text-sm text-zinc-300 leading-relaxed">{activeGarment.description}</p>
 
               <div className="grid grid-cols-2 gap-4 border-y border-white/10 py-6">
                 <div>
-                  <h5 className="text-[11px] font-bold uppercase tracking-wider text-zinc-500">Milled Fabric</h5>
+                  <h5 className="text-[11px] font-bold uppercase tracking-wider text-zinc-500">
+                    Milled Fabric
+                  </h5>
                   <p className="text-xs font-semibold text-white mt-1">{activeGarment.fabric}</p>
                 </div>
                 <div>
-                  <h5 className="text-[11px] font-bold uppercase tracking-wider text-zinc-500">Available Sizes</h5>
-                  <p className="text-xs font-semibold text-white mt-1">{activeGarment.sizes.join(", ")}</p>
+                  <h5 className="text-[11px] font-bold uppercase tracking-wider text-zinc-500">
+                    Available Sizes
+                  </h5>
+                  <p className="text-xs font-semibold text-white mt-1">
+                    {activeGarment.sizes.join(", ")}
+                  </p>
                 </div>
               </div>
 
               <div className="space-y-2">
-                <h5 className="text-[11px] font-bold uppercase tracking-wider text-zinc-500">Care Directives</h5>
+                <h5 className="text-[11px] font-bold uppercase tracking-wider text-zinc-500">
+                  Care Directives
+                </h5>
                 <ul className="text-xs text-zinc-400 space-y-1">
                   {activeGarment.care.map((c, i) => (
                     <li key={i} className="flex items-center gap-2">
@@ -299,22 +336,30 @@ export function Index() {
               </div>
 
               <h2 className="display-xl text-4xl sm:text-6xl text-white leading-tight">
-                CUT WITH INTENT.<br />
+                CUT WITH INTENT.
+                <br />
                 <span className="text-zinc-500">CRAFTED FOR DEPTH.</span>
               </h2>
 
               <p className="text-base leading-relaxed text-zinc-300">
-                The DRIPCYCLEX draconic emblem symbolizes relentless power, transformation, and nocturnal instinct. Rooted in black-and-white stark minimalism, each garment is built around strict architectural shoulders, dense tactile hand-feels, and precision industrial stitching.
+                The DRIPCYCLEX draconic emblem symbolizes relentless power, transformation, and
+                nocturnal instinct. Rooted in black-and-white stark minimalism, each garment is
+                built around strict architectural shoulders, dense tactile hand-feels, and precision
+                industrial stitching.
               </p>
 
               <div className="grid grid-cols-2 gap-6 pt-4 border-t border-white/10">
                 <div>
                   <h4 className="display-xl text-xl text-white">ZERO EXCESS</h4>
-                  <p className="text-xs text-zinc-400 mt-1">We reject algorithmic collections. Only 3 engineered pieces exist per drop.</p>
+                  <p className="text-xs text-zinc-400 mt-1">
+                    We reject algorithmic collections. Only 3 engineered pieces exist per drop.
+                  </p>
                 </div>
                 <div>
                   <h4 className="display-xl text-xl text-white">CHROME HARDWARE</h4>
-                  <p className="text-xs text-zinc-400 mt-1">Distressed chrome typography and custom industrial zipper pulls.</p>
+                  <p className="text-xs text-zinc-400 mt-1">
+                    Distressed chrome typography and custom industrial zipper pulls.
+                  </p>
                 </div>
               </div>
 
@@ -360,9 +405,13 @@ export function Index() {
             JOIN THE DRIPCYCLE<span className="text-red-500">X</span> SYNDICATE
           </h2>
           <p className="mt-4 text-sm sm:text-base text-zinc-400 max-w-xl mx-auto">
-            Subscribe for early drop windows, private flagship fitting invitations, and password-protected archive releases.
+            Subscribe for early drop windows, private flagship fitting invitations, and
+            password-protected archive releases.
           </p>
-          <form onSubmit={handleSubscribe} className="mt-8 flex flex-col sm:flex-row gap-3 max-w-md mx-auto">
+          <form
+            onSubmit={handleSubscribe}
+            className="mt-8 flex flex-col sm:flex-row gap-3 max-w-md mx-auto"
+          >
             <input
               type="email"
               required

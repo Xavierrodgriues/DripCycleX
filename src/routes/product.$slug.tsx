@@ -15,7 +15,13 @@ import { toast } from "sonner";
 import { formatPrice, getProduct, products } from "@/data/products";
 import { useShop } from "@/lib/shop-store";
 import { ProductCard } from "@/components/product-card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/product/$slug")({
@@ -161,9 +167,7 @@ function ProductDetailsPage() {
                 <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
                 <span className="eyebrow text-zinc-400 font-bold">{product.category}</span>
               </div>
-              <h1 className="display-xl mt-2 text-3xl sm:text-4xl text-white">
-                {product.name}
-              </h1>
+              <h1 className="display-xl mt-2 text-3xl sm:text-4xl text-white">{product.name}</h1>
 
               {/* Rating & Reviews */}
               <div className="mt-3 flex items-center gap-3">
@@ -181,7 +185,9 @@ function ProductDetailsPage() {
                   ))}
                 </div>
                 <span className="text-xs font-bold text-white">{product.rating}</span>
-                <span className="text-xs text-zinc-400">({product.reviews} verified drop reviews)</span>
+                <span className="text-xs text-zinc-400">
+                  ({product.reviews} verified drop reviews)
+                </span>
               </div>
 
               {/* Price Display */}
@@ -249,11 +255,14 @@ function ProductDetailsPage() {
                   </DialogTrigger>
                   <DialogContent className="sm:max-w-lg bg-zinc-950 border border-white/15 text-white">
                     <DialogHeader>
-                      <DialogTitle className="display-xl text-xl text-white">DRIPCYCLEX SIZE GUIDE</DialogTitle>
+                      <DialogTitle className="display-xl text-xl text-white">
+                        DRIPCYCLEX SIZE GUIDE
+                      </DialogTitle>
                     </DialogHeader>
                     <div className="py-4 space-y-4 text-xs">
                       <p className="text-zinc-400">
-                        Cut for an architectural drop-shoulder streetwear drape. All measurements are in inches.
+                        Cut for an architectural drop-shoulder streetwear drape. All measurements
+                        are in inches.
                       </p>
                       <div className="overflow-x-auto border border-white/10">
                         <table className="w-full text-left">
@@ -267,31 +276,41 @@ function ProductDetailsPage() {
                           </thead>
                           <tbody className="divide-y divide-white/10 text-zinc-300">
                             <tr>
-                              <td className="p-2.5 font-bold border-r border-white/10 text-white">S</td>
+                              <td className="p-2.5 font-bold border-r border-white/10 text-white">
+                                S
+                              </td>
                               <td className="p-2.5 border-r border-white/10">40 - 42"</td>
                               <td className="p-2.5 border-r border-white/10">20.0"</td>
                               <td className="p-2.5">28.0"</td>
                             </tr>
                             <tr>
-                              <td className="p-2.5 font-bold border-r border-white/10 text-white">M</td>
+                              <td className="p-2.5 font-bold border-r border-white/10 text-white">
+                                M
+                              </td>
                               <td className="p-2.5 border-r border-white/10">42 - 44"</td>
                               <td className="p-2.5 border-r border-white/10">21.0"</td>
                               <td className="p-2.5">29.0"</td>
                             </tr>
                             <tr>
-                              <td className="p-2.5 font-bold border-r border-white/10 text-white">L</td>
+                              <td className="p-2.5 font-bold border-r border-white/10 text-white">
+                                L
+                              </td>
                               <td className="p-2.5 border-r border-white/10">44 - 46"</td>
                               <td className="p-2.5 border-r border-white/10">22.0"</td>
                               <td className="p-2.5">30.0"</td>
                             </tr>
                             <tr>
-                              <td className="p-2.5 font-bold border-r border-white/10 text-white">XL</td>
+                              <td className="p-2.5 font-bold border-r border-white/10 text-white">
+                                XL
+                              </td>
                               <td className="p-2.5 border-r border-white/10">46 - 48"</td>
                               <td className="p-2.5 border-r border-white/10">23.0"</td>
                               <td className="p-2.5">31.0"</td>
                             </tr>
                             <tr>
-                              <td className="p-2.5 font-bold border-r border-white/10 text-white">XXL</td>
+                              <td className="p-2.5 font-bold border-r border-white/10 text-white">
+                                XXL
+                              </td>
                               <td className="p-2.5 border-r border-white/10">48 - 50"</td>
                               <td className="p-2.5 border-r border-white/10">24.0"</td>
                               <td className="p-2.5">32.0"</td>
@@ -327,7 +346,9 @@ function ProductDetailsPage() {
 
             {/* Quantity Selector */}
             <div>
-              <span className="text-xs font-bold uppercase tracking-wider block mb-2 text-white">Quantity:</span>
+              <span className="text-xs font-bold uppercase tracking-wider block mb-2 text-white">
+                Quantity:
+              </span>
               <div className="inline-flex items-center border border-white/20 bg-zinc-950">
                 <button
                   onClick={() => setQuantity((q) => Math.max(1, q - 1))}
@@ -382,7 +403,9 @@ function ProductDetailsPage() {
                   <h4 className="text-xs font-bold uppercase tracking-wider text-white">
                     Direct-To-Consumer Dispatch
                   </h4>
-                  <p className="text-xs text-zinc-400">Dispatched within 24 hours · Priority express pan-India</p>
+                  <p className="text-xs text-zinc-400">
+                    Delivered within 8 working days · Low delivery fee pan-India
+                  </p>
                 </div>
               </div>
               <Link
@@ -397,11 +420,11 @@ function ProductDetailsPage() {
             <div className="space-y-2 text-xs text-zinc-400 pt-2">
               <div className="flex items-center gap-2">
                 <Truck className="h-4 w-4 text-white" />
-                <span>Complimentary express delivery across India over ₹1999</span>
+                <span>Pan-India delivery in 8 working days · Low delivery fee</span>
               </div>
               <div className="flex items-center gap-2">
                 <ShieldCheck className="h-4 w-4 text-white" />
-                <span>15-Day hassle-free return or size exchange</span>
+                <span>7-Day exchange if error from our side (size mismatch/defect) · No doorstep pickup</span>
               </div>
             </div>
 
@@ -427,9 +450,7 @@ function ProductDetailsPage() {
               </div>
 
               <div className="py-4 text-sm text-zinc-300 leading-relaxed">
-                {activeTab === "description" && (
-                  <p>{product.description}</p>
-                )}
+                {activeTab === "description" && <p>{product.description}</p>}
 
                 {activeTab === "fabric" && (
                   <div className="space-y-2">
@@ -437,7 +458,8 @@ function ProductDetailsPage() {
                       <strong className="text-white">Specification:</strong> {product.fabric}
                     </p>
                     <p className="text-zinc-400 text-xs">
-                      Custom milled in Tamil Nadu & Maharashtra with reinforced high-twist yarns for structural shape retention and fade resistance.
+                      Custom milled in Tamil Nadu & Maharashtra with reinforced high-twist yarns for
+                      structural shape retention and fade resistance.
                     </p>
                   </div>
                 )}
@@ -460,7 +482,9 @@ function ProductDetailsPage() {
             <div className="flex items-end justify-between mb-8">
               <div>
                 <span className="eyebrow text-zinc-400 font-bold">COMPLETE THE CAPSULE</span>
-                <h2 className="display-xl mt-1 text-2xl sm:text-4xl text-white">OTHER TRINITY PIECES</h2>
+                <h2 className="display-xl mt-1 text-2xl sm:text-4xl text-white">
+                  OTHER TRINITY PIECES
+                </h2>
               </div>
               <Link
                 to="/shop"
@@ -471,11 +495,7 @@ function ProductDetailsPage() {
             </div>
             <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
               {otherTrinityPieces.map((p, idx) => (
-                <ProductCard
-                  key={p.id}
-                  product={p}
-                  badgeNumber={`0${idx + 1} / 02 OTHER`}
-                />
+                <ProductCard key={p.id} product={p} badgeNumber={`0${idx + 1} / 02 OTHER`} />
               ))}
             </div>
           </div>

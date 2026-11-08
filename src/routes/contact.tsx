@@ -1,9 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { Mail, Phone, Send, ShieldCheck, Truck } from "lucide-react";
+import { Instagram, Mail, Phone, Send, ShieldCheck, Truck } from "lucide-react";
 import { toast } from "sonner";
 
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 
 export const Route = createFileRoute("/contact")({
   component: ContactPage,
@@ -82,7 +87,10 @@ function ContactPage() {
                   <h4 className="text-xs font-bold uppercase tracking-wider text-white">
                     Direct Contact Number
                   </h4>
-                  <a href="tel:+918469711940" className="text-sm font-semibold hover:underline block mt-0.5 text-zinc-200">
+                  <a
+                    href="tel:+918469711940"
+                    className="text-sm font-semibold hover:underline block mt-0.5 text-zinc-200"
+                  >
                     +91 84697 11940
                   </a>
                   <p className="text-[11px] text-zinc-500 mt-1">Mon – Sat, 10 AM – 7 PM IST</p>
@@ -97,10 +105,33 @@ function ContactPage() {
                   <h4 className="text-xs font-bold uppercase tracking-wider text-white">
                     Official Email
                   </h4>
-                  <a href="mailto:Dripcyclex@gmail.com" className="text-sm font-semibold hover:underline block mt-0.5 text-zinc-200">
+                  <a
+                    href="mailto:Dripcyclex@gmail.com"
+                    className="text-sm font-semibold hover:underline block mt-0.5 text-zinc-200"
+                  >
                     Dripcyclex@gmail.com
                   </a>
                   <p className="text-[11px] text-zinc-500 mt-1">Response window: within 24 hours</p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-4 border border-white/10 bg-zinc-950 p-5">
+                <div className="grid h-10 w-10 shrink-0 place-items-center border border-white/15 bg-white/5 text-white">
+                  <Instagram className="h-5 w-5" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-white">
+                    Instagram Handle
+                  </h4>
+                  <a
+                    href="https://www.instagram.com/dripcyclex/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm font-semibold hover:underline block mt-0.5 text-zinc-200"
+                  >
+                    @dripcyclex
+                  </a>
+                  <p className="text-[11px] text-zinc-500 mt-1">Official releases & drop notifications</p>
                 </div>
               </div>
 
@@ -112,9 +143,7 @@ function ContactPage() {
                   <h4 className="text-xs font-bold uppercase tracking-wider text-white">
                     100% Online Dedicated Brand
                   </h4>
-                  <p className="text-sm text-zinc-200 mt-0.5">
-                    Direct-To-Consumer Model
-                  </p>
+                  <p className="text-sm text-zinc-200 mt-0.5">Direct-To-Consumer Model</p>
                   <p className="text-xs text-zinc-400 mt-0.5">
                     No physical store markups. Direct priority dispatch across India.
                   </p>
@@ -125,7 +154,10 @@ function ContactPage() {
             <div className="border border-white/15 bg-zinc-950 p-6 text-white">
               <h4 className="display-xl text-lg text-white">ONLINE ORDERS & DISPATCH</h4>
               <p className="text-xs text-zinc-400 mt-2 leading-relaxed">
-                Orders are verified and packed in custom protective matte packaging. Need help tracking your order? Reach out directly via <strong className="text-white">Dripcyclex@gmail.com</strong> or call <strong className="text-white">+91 84697 11940</strong>.
+                Orders are verified and packed in custom protective matte packaging. Need help
+                tracking your order? Reach out directly via{" "}
+                <strong className="text-white">Dripcyclex@gmail.com</strong> or call{" "}
+                <strong className="text-white">+91 84697 11940</strong>.
               </p>
             </div>
           </div>
@@ -225,7 +257,9 @@ function ContactPage() {
         <div className="mt-24 border-t border-white/10 pt-16">
           <div className="text-center max-w-xl mx-auto mb-12">
             <span className="eyebrow text-zinc-400 font-bold">HELP & DIRECTIVES</span>
-            <h2 className="display-xl mt-2 text-3xl sm:text-5xl text-white">FREQUENTLY ASKED QUESTIONS</h2>
+            <h2 className="display-xl mt-2 text-3xl sm:text-5xl text-white">
+              FREQUENTLY ASKED QUESTIONS
+            </h2>
           </div>
 
           <div className="max-w-3xl mx-auto border border-white/10 bg-zinc-950 p-6 sm:p-8">
@@ -235,7 +269,10 @@ function ContactPage() {
                   Are there physical offline retail stores?
                 </AccordionTrigger>
                 <AccordionContent className="text-sm text-zinc-400 leading-relaxed pt-2">
-                  No, DRIPCYCLEX operates strictly as a 100% online direct-to-consumer brand. By eliminating brick-and-mortar overhead and distributor markups, we invest exclusively into premium 280–420 GSM milled fabrics, custom hardware, and expedited express delivery across India.
+                  No, DRIPCYCLEX operates strictly as a 100% online direct-to-consumer brand. By
+                  eliminating brick-and-mortar overhead and distributor markups, we invest
+                  exclusively into premium 280–420 GSM milled fabrics, custom hardware, and
+                  reliable 8 working days delivery with a low delivery fee across India.
                 </AccordionContent>
               </AccordionItem>
 
@@ -244,7 +281,9 @@ function ContactPage() {
                   How do DRIPCYCLEX fits compare to standard sizing?
                 </AccordionTrigger>
                 <AccordionContent className="text-sm text-zinc-400 leading-relaxed pt-2">
-                  All DRIPCYCLEX garments are cut with intentional architectural volume and drop shoulders. If you prefer a bold modern streetwear silhouette, choose your regular size. If you desire a standard fitted profile, choose one size down.
+                  All DRIPCYCLEX garments are cut with intentional architectural volume and drop
+                  shoulders. If you prefer a bold modern streetwear silhouette, choose your regular
+                  size. If you desire a standard fitted profile, choose one size down.
                 </AccordionContent>
               </AccordionItem>
 
@@ -253,7 +292,10 @@ function ContactPage() {
                   Why does DRIPCYCLEX showcase only 3 products?
                 </AccordionTrigger>
                 <AccordionContent className="text-sm text-zinc-400 leading-relaxed pt-2">
-                  We reject fast-fashion dilution. We focus all our pattern design, custom milling, and quality control on a 3-piece Trinity Drop (Oversized Cyber Tee, Signature Stealth Hoodie, and Tactical Matte Bomber). Each piece is built to be an enduring grail.
+                  We reject fast-fashion dilution. We focus all our pattern design, custom milling,
+                  and quality control on a 3-piece Trinity Drop (Oversized Cyber Tee, Signature
+                  Stealth Hoodie, and Tactical Matte Bomber). Each piece is built to be an enduring
+                  grail.
                 </AccordionContent>
               </AccordionItem>
 
@@ -261,8 +303,13 @@ function ContactPage() {
                 <AccordionTrigger className="text-base font-bold text-white hover:text-zinc-300 text-left">
                   What is your return and exchange policy?
                 </AccordionTrigger>
-                <AccordionContent className="text-sm text-zinc-400 leading-relaxed pt-2">
-                  We provide a straightforward 15-day return or exchange policy across India for unwashed, unworn garments with original tags intact. Doorstep pickup is completely free.
+                <AccordionContent className="text-sm text-zinc-400 leading-relaxed pt-2 space-y-2">
+                  <p>
+                    Please note that we do not offer returns or doorstep pickups. However, we provide a <strong className="text-white">7-day exchange policy</strong> if there is a mistake from our side—such as an incorrect size dispatched or a defective/damaged product.
+                  </p>
+                  <p>
+                    To request an exchange, reach out to our team via WhatsApp or email (<strong className="text-white">Dripcyclex@gmail.com</strong>) within 7 days of receiving your package with photos or an unboxing video showing the issue, and our team will process the exchange promptly.
+                  </p>
                 </AccordionContent>
               </AccordionItem>
 
@@ -271,7 +318,7 @@ function ContactPage() {
                   How long does shipping take across India?
                 </AccordionTrigger>
                 <AccordionContent className="text-sm text-zinc-400 leading-relaxed pt-2">
-                  Complimentary express shipping applies to all orders over ₹1999. Deliveries take 2–4 business days for major metro centers and 4–6 business days for the rest of India.
+                  Orders are dispatched through trusted logistics partners with a low delivery fee across India. Deliveries typically arrive within <strong className="text-white">8 working days</strong> from the date of confirmation.
                 </AccordionContent>
               </AccordionItem>
             </Accordion>

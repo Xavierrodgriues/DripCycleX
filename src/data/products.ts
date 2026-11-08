@@ -114,7 +114,7 @@ export const products: Product[] = [
       "Cool iron if necessary",
       "Store on contoured hanger",
     ],
-    badges: ["Drop 03", "Limited 300 Pcs"],
+    badges: ["Drop 03", "Limited Pieces"],
     isNew: true,
     isBestSeller: false,
   },
