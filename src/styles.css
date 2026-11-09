@@ -187,7 +187,41 @@
   }
 }
 
+/* ==============================================================================
+   DRIPCYCLEX SLIDE-UP ROUTE TRANSITION KEYFRAMES (SLOW EASE-IN-OUT)
+   ============================================================================== */
+.transition-curtain-up-enter {
+  animation: curtain-up-in 0.75s cubic-bezier(0.77, 0, 0.175, 1) forwards;
+}
+
+.transition-curtain-up-exit {
+  animation: curtain-up-out 0.8s cubic-bezier(0.77, 0, 0.175, 1) forwards;
+}
+
+@keyframes curtain-up-in {
+  0% {
+    transform: translateY(100%);
+  }
+  100% {
+    transform: translateY(0%);
+  }
+}
+
+@keyframes curtain-up-out {
+  0% {
+    transform: translateY(0%);
+  }
+  100% {
+    transform: translateY(-100%);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .transition-curtain-up-enter,
+  .transition-curtain-up-exit {
+    animation: none;
+    transform: none;
+  }
   .reveal {
     opacity: 1;
     transform: none;

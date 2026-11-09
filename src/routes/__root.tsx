@@ -19,6 +19,8 @@ import { ShopProvider } from "@/lib/shop-store";
 import { AuthProvider } from "@/lib/auth-store";
 import { Toaster } from "@/components/ui/sonner";
 import { initSupabaseRealtimeSubscription } from "@/lib/supabase";
+import { SmoothScrollProvider } from "@/components/smooth-scroll-provider";
+import { PageRouteTransition } from "@/components/page-route-transition";
 
 function NotFoundComponent() {
   return (
@@ -143,12 +145,16 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <ShopProvider>
-          {!isAdmin && <SiteHeader />}
-          <main className={isAdmin ? "min-h-screen bg-black" : "min-h-screen pb-16 lg:pb-0"}>
-            <Outlet />
-          </main>
-          {!isAdmin && <SiteFooter />}
-          <Toaster theme="dark" />
+          <SmoothScrollProvider showSlideBar={!isAdmin}>
+            <PageRouteTransition>
+              {!isAdmin && <SiteHeader />}
+              <main className={isAdmin ? "min-h-screen bg-black" : "min-h-screen pb-16 lg:pb-0"}>
+                <Outlet />
+              </main>
+              {!isAdmin && <SiteFooter />}
+            </PageRouteTransition>
+            <Toaster theme="dark" />
+          </SmoothScrollProvider>
         </ShopProvider>
       </AuthProvider>
     </QueryClientProvider>
