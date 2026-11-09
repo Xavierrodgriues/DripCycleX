@@ -20,7 +20,7 @@ function getRouteMeta(pathname: string): { code: string; label: string; sub: str
     return {
       code: "ARCHIVE-01",
       label: "THE TRINITY DROP",
-      sub: "HEAVYWEIGHT 280–420 GSM CAPSULE",
+      sub: "HEAVYWEIGHT 240–480 GSM CAPSULE",
     };
   }
   if (pathname.startsWith("/product/")) {

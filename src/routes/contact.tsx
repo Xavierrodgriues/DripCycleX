@@ -353,7 +353,7 @@ function ContactPage() {
                 <AccordionContent className="text-sm text-zinc-400 leading-relaxed pt-2">
                   No, DRIPCYCLEX operates strictly as a 100% online direct-to-consumer brand. By
                   eliminating brick-and-mortar overhead and distributor markups, we invest
-                  exclusively into premium 280–420 GSM milled fabrics, custom hardware, and
+                  exclusively into premium 240–480 GSM milled fabrics, custom hardware, and
                   reliable 8 working days delivery with a low delivery fee across India.
                 </AccordionContent>
               </AccordionItem>
@@ -375,8 +375,7 @@ function ContactPage() {
                 </AccordionTrigger>
                 <AccordionContent className="text-sm text-zinc-400 leading-relaxed pt-2">
                   We reject fast-fashion dilution. We focus all our pattern design, custom milling,
-                  and quality control on a 3-piece Trinity Drop (Oversized Cyber Tee, Signature
-                  Stealth Hoodie, and Tactical Matte Bomber). Each piece is built to be an enduring
+                  and quality control on a 3-piece Trinity Drop. Each piece is built to be an enduring
                   grail.
                 </AccordionContent>
               </AccordionItem>

@@ -97,17 +97,17 @@ function AboutPage() {
         </div>
       </section>
 
-      {/* 4 Brand Pillars */}
+      {/* Brand Pillars */}
       <section className="py-20 bg-black border-b border-white/10">
         <div className="mx-auto max-w-[1400px] px-5 sm:px-8 lg:px-12">
           <div className="text-center max-w-xl mx-auto mb-16">
             <span className="eyebrow text-zinc-400 font-bold">Core Foundations</span>
             <h2 className="display-xl mt-2 text-3xl sm:text-5xl text-white">
-              FOUR PILLARS OF DRIPCYCLEX
+              CORE PILLARS OF DRIPCYCLEX
             </h2>
           </div>
 
-          <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-8 md:grid-cols-3 max-w-6xl mx-auto justify-center">
             <Reveal delay={100} className="border border-white/10 bg-zinc-950 p-8 space-y-4">
               <div className="grid h-12 w-12 place-items-center border border-white/20 bg-white/5 text-white">
                 <Compass className="h-6 w-6" />
@@ -125,7 +125,7 @@ function AboutPage() {
               </div>
               <h3 className="display-xl text-xl text-white">HEAVYWEIGHT DENSITIES</h3>
               <p className="text-xs text-zinc-400 leading-relaxed">
-                280 GSM combed cotton and 420 GSM loopback brushed fleece milled exclusively to
+                240 GSM combed cotton and 480 GSM loopback brushed fleece milled exclusively to
                 prevent limp drape and stretching.
               </p>
             </Reveal>
@@ -141,7 +141,7 @@ function AboutPage() {
               </p>
             </Reveal>
 
-            <Reveal delay={400} className="border border-white/10 bg-zinc-950 p-8 space-y-4">
+            {/* <Reveal delay={400} className="border border-white/10 bg-zinc-950 p-8 space-y-4">
               <div className="grid h-12 w-12 place-items-center border border-white/20 bg-white/5 text-white">
                 <CheckCircle className="h-6 w-6" />
               </div>
@@ -150,7 +150,7 @@ function AboutPage() {
                 Strictly limited piece runs per silhouette to preserve rarity,
                 authenticity, and uncompromising craft standards. Zero restocks once archived.
               </p>
-            </Reveal>
+            </Reveal> */}
           </div>
         </div>
       </section>
@@ -166,7 +166,7 @@ function AboutPage() {
               </p>
             </div>
             <div className="py-4">
-              <p className="display-xl text-4xl sm:text-6xl text-white">280–420</p>
+              <p className="display-xl text-4xl sm:text-6xl text-white">240–480</p>
               <p className="text-xs uppercase tracking-widest text-zinc-400 mt-2">
                 GSM Heavyweight Milled
               </p>
@@ -197,7 +197,7 @@ function AboutPage() {
             </h2>
             <p className="text-zinc-400 text-sm leading-relaxed">
               DRIPCYCLEX operates without offline retail middlemen or physical boutique markups.
-              Every rupee invested goes directly into 280–420 GSM heavy fabric milling, bespoke
+              Every rupee invested goes directly into 240–480 GSM heavy fabric milling, bespoke
               industrial trims, and dependable delivery within 8 working days across India at low delivery fees.
             </p>
             <div className="pt-4 flex justify-center gap-4">

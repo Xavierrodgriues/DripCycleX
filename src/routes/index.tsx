@@ -81,7 +81,7 @@ export function Index() {
 
             <p className="mt-6 text-base sm:text-xl font-normal leading-relaxed text-zinc-300 max-w-2xl">
               DRIPCYCLEX redefines luxury Indian streetwear. A curated 3-piece capsule cut from
-              280–420 GSM milled cottons with draconic precision and distressed chrome geometry.
+              240–480 GSM milled cottons with draconic precision and distressed chrome geometry.
             </p>
 
             <div className="mt-10 flex flex-wrap gap-4">
@@ -109,7 +109,7 @@ export function Index() {
               </p>
             </div>
             <div>
-              <p className="display-xl text-3xl sm:text-4xl text-white">280–420</p>
+              <p className="display-xl text-3xl sm:text-4xl text-white">240–480</p>
               <p className="text-[11px] uppercase tracking-widest text-zinc-400 mt-1">
                 GSM Heavyweight Milled
               </p>
@@ -141,7 +141,7 @@ export function Index() {
               <span className="text-zinc-600">•</span>
               <span>3 EXCLUSIVE SILHOUETTES</span>
               <span className="text-zinc-600">•</span>
-              <span>280–420 GSM MILLED COTTON</span>
+              <span>240–480 GSM MILLED COTTON</span>
               <span className="text-zinc-600">•</span>
               <span>8 WORKING DAYS DELIVERY · LOW DELIVERY FEE</span>
               <span className="text-zinc-600">•</span>

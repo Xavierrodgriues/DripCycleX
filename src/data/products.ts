@@ -62,7 +62,7 @@ export const DEFAULT_CATEGORIES: CategoryItem[] = [
   {
     slug: "hoodies",
     name: "Hoodies",
-    description: "420 GSM structured fleece hoodies with architectural double-layer hoods.",
+    description: "480 GSM structured fleece hoodies with architectural double-layer hoods.",
     display_order: 2,
     is_active: true,
   },
@@ -123,8 +123,8 @@ export const products: Product[] = [
     colors: [BLACK, WHITE, SIGNAL_RED],
     sizes: ["S", "M", "L", "XL", "XXL"],
     description:
-      "Signature drop-shoulder heavyweight tee built for structural volume. Features the iconic DRIPCYCLEX draconic back print, distressed chrome typography, reinforced ribbed collar, and ultra-dense 280 GSM combed cotton.",
-    fabric: "280 GSM heavyweight combed cotton, enzyme bio-washed for deep blacks",
+      "Signature drop-shoulder heavyweight tee built for structural volume. Features the iconic DRIPCYCLEX draconic back print, distressed chrome typography, reinforced ribbed collar, and ultra-dense 240 GSM combed cotton.",
+    fabric: "240 GSM heavyweight combed cotton, enzyme bio-washed for deep blacks",
     care: [
       "Cold machine wash inside out",
       "Do not bleach or dry clean",
@@ -148,8 +148,8 @@ export const products: Product[] = [
     colors: [BLACK, CHARCOAL, SIGNAL_RED],
     sizes: ["S", "M", "L", "XL", "XXL"],
     description:
-      "Architectural oversized silhouette in 420 GSM heavyweight brushed fleece. Designed with a double-layered structured hood that refuses to collapse, seamless kangaroo pouch, dropped shoulders, and subtle monochrome embroidered DRIPCYCLEX crest.",
-    fabric: "420 GSM luxury loopback brushed cotton fleece",
+      "Architectural oversized silhouette in 480 GSM heavyweight brushed fleece. Designed with a double-layered structured hood that refuses to collapse, seamless kangaroo pouch, dropped shoulders, and subtle monochrome embroidered DRIPCYCLEX crest.",
+    fabric: "480 GSM luxury loopback brushed cotton fleece",
     care: [
       "Machine wash cold delicate",
       "Wash with dark colors only",
