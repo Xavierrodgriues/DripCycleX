@@ -38,18 +38,37 @@ CREATE TABLE IF NOT EXISTS public.profiles (
 -- Auto-sync profiles when a user registers via Supabase Auth
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
+DECLARE
+    v_shipping JSONB;
 BEGIN
-    INSERT INTO public.profiles (id, email, full_name, phone, avatar_url)
+    IF NEW.raw_user_meta_data->'shipping_address' IS NOT NULL THEN
+        v_shipping := NEW.raw_user_meta_data->'shipping_address';
+    ELSE
+        v_shipping := jsonb_build_object(
+            'address_line1', COALESCE(NEW.raw_user_meta_data->>'address', ''),
+            'address_line2', '',
+            'city', COALESCE(NEW.raw_user_meta_data->>'city', ''),
+            'state', COALESCE(NEW.raw_user_meta_data->>'state', ''),
+            'postal_code', COALESCE(NEW.raw_user_meta_data->>'zipCode', NEW.raw_user_meta_data->>'postal_code', ''),
+            'country', 'India'
+        );
+    END IF;
+
+    INSERT INTO public.profiles (id, email, full_name, phone, avatar_url, shipping_address)
     VALUES (
         NEW.id,
         NEW.email,
         COALESCE(NEW.raw_user_meta_data->>'full_name', NEW.raw_user_meta_data->>'name', ''),
         COALESCE(NEW.raw_user_meta_data->>'phone', ''),
-        COALESCE(NEW.raw_user_meta_data->>'avatar_url', '')
+        COALESCE(NEW.raw_user_meta_data->>'avatar_url', ''),
+        v_shipping
     )
     ON CONFLICT (id) DO UPDATE
     SET email = EXCLUDED.email,
-        full_name = CASE WHEN profiles.full_name = '' THEN EXCLUDED.full_name ELSE profiles.full_name END;
+        full_name = CASE WHEN profiles.full_name IS NULL OR profiles.full_name = '' THEN EXCLUDED.full_name ELSE profiles.full_name END,
+        phone = CASE WHEN profiles.phone IS NULL OR profiles.phone = '' THEN EXCLUDED.phone ELSE profiles.phone END,
+        shipping_address = CASE WHEN profiles.shipping_address IS NULL OR profiles.shipping_address = '{}'::jsonb THEN EXCLUDED.shipping_address ELSE profiles.shipping_address END,
+        updated_at = timezone('utc'::text, now());
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -347,7 +366,11 @@ ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
 
 -- Profiles Policies
 DROP POLICY IF EXISTS "Public profiles can be viewed by owner" ON public.profiles;
-CREATE POLICY "Public profiles can be viewed by owner" ON public.profiles FOR SELECT USING (auth.uid() = id);
+DROP POLICY IF EXISTS "Profiles viewable" ON public.profiles;
+CREATE POLICY "Profiles viewable" ON public.profiles FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Users can insert own profile" ON public.profiles;
+CREATE POLICY "Users can insert own profile" ON public.profiles FOR INSERT WITH CHECK (auth.uid() = id);
 
 DROP POLICY IF EXISTS "Users can update their own profile" ON public.profiles;
 CREATE POLICY "Users can update their own profile" ON public.profiles FOR UPDATE USING (auth.uid() = id);
