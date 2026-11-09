@@ -28,7 +28,13 @@ export interface SizeItem {
   is_active?: boolean;
 }
 
-export type ColorOption = { name: string; hex: string };
+export type ColorOption = {
+  name: string;
+  hex: string;
+  image?: string | undefined;
+  images?: string[] | undefined;
+  sizes?: string[] | undefined;
+};
 
 export type Product = {
   id: string;
@@ -104,10 +110,26 @@ export const CATEGORIES: Category[] = DEFAULT_CATEGORIES.map((c) => c.name);
 
 export const ALL_SIZES: string[] = DEFAULT_SIZES.map((s) => s.code);
 
-const BLACK = { name: "Pitch Black", hex: "#0a0a0a" };
-const WHITE = { name: "Ice White", hex: "#f5f5f5" };
-const CHARCOAL = { name: "Shadow Charcoal", hex: "#27272a" };
-const SIGNAL_RED = { name: "Crimson Red", hex: "#ef233c" };
+const BLACK: ColorOption = {
+  name: "Pitch Black",
+  hex: "#0a0a0a",
+  sizes: ["S", "M", "L", "XL", "XXL"],
+};
+const WHITE: ColorOption = {
+  name: "Ice White",
+  hex: "#f5f5f5",
+  sizes: ["S", "M", "L", "XL"],
+};
+const CHARCOAL: ColorOption = {
+  name: "Shadow Charcoal",
+  hex: "#27272a",
+  sizes: ["M", "L", "XL", "XXL"],
+};
+const SIGNAL_RED: ColorOption = {
+  name: "Crimson Red",
+  hex: "#ef233c",
+  sizes: ["S", "M", "L"],
+};
 
 export const products: Product[] = [
   {
@@ -120,7 +142,11 @@ export const products: Product[] = [
     rating: 4.9,
     reviews: 284,
     images: [p1a, p1b],
-    colors: [BLACK, WHITE, SIGNAL_RED],
+    colors: [
+      { ...BLACK, image: p1a, sizes: ["S", "M", "L", "XL", "XXL"] },
+      { ...WHITE, image: p1b, sizes: ["M", "L", "XL"] },
+      { ...SIGNAL_RED, sizes: ["S", "M", "L"] },
+    ],
     sizes: ["S", "M", "L", "XL", "XXL"],
     description:
       "Signature drop-shoulder heavyweight tee built for structural volume. Features the iconic DRIPCYCLEX draconic back print, distressed chrome typography, reinforced ribbed collar, and ultra-dense 240 GSM combed cotton.",
@@ -145,7 +171,11 @@ export const products: Product[] = [
     rating: 4.9,
     reviews: 342,
     images: [], // Stock images removed as requested; ready for custom upload via Admin panel
-    colors: [BLACK, CHARCOAL, SIGNAL_RED],
+    colors: [
+      { ...BLACK, sizes: ["S", "M", "L", "XL", "XXL"] },
+      { ...CHARCOAL, sizes: ["M", "L", "XL", "XXL"] },
+      { ...SIGNAL_RED, sizes: ["S", "M", "L"] },
+    ],
     sizes: ["S", "M", "L", "XL", "XXL"],
     description:
       "Architectural oversized silhouette in 480 GSM heavyweight brushed fleece. Designed with a double-layered structured hood that refuses to collapse, seamless kangaroo pouch, dropped shoulders, and subtle monochrome embroidered DRIPCYCLEX crest.",
@@ -170,7 +200,10 @@ export const products: Product[] = [
     rating: 4.8,
     reviews: 196,
     images: [p6a, p6b],
-    colors: [BLACK, CHARCOAL],
+    colors: [
+      { ...BLACK, image: p6a, sizes: ["S", "M", "L", "XL", "XXL"] },
+      { ...CHARCOAL, image: p6b, sizes: ["M", "L", "XL"] },
+    ],
     sizes: ["S", "M", "L", "XL", "XXL"],
     description:
       "Engineered flight bomber finished with a matte technical water-repellent shell. Features custom silver industrial zip hardware, internal chest harness, modular sleeve utility pocket, and dense ribbed trims for an uncompromising sharp silhouette.",

@@ -240,6 +240,7 @@ export async function syncProductToSupabase(product: Product): Promise<boolean> 
       rating: product.rating,
       reviews_count: product.reviews,
       images: product.images,
+      colors: product.colors || [],
       sizes: product.sizes,
       description: product.description,
       fabric: product.fabric,
@@ -630,6 +631,7 @@ export async function fetchProducts(): Promise<Product[]> {
                 : (fallbackMatch?.images ?? []),
           colors:
             localMatch?.colors ||
+            (Array.isArray(row.colors) && row.colors.length > 0 ? row.colors : undefined) ||
             fallbackMatch?.colors || [
               { name: "Pitch Black", hex: "#0a0a0a" },
               { name: "Ice White", hex: "#f5f5f5" },

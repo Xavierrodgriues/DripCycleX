@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   ArrowLeft,
   ChevronLeft,
@@ -76,14 +76,61 @@ function ProductDetailsPage() {
   const [quantity, setQuantity] = useState(1);
   const [activeTab, setActiveTab] = useState<"description" | "fabric" | "care">("description");
 
-  // Keep selected size in sync if product sizes change
-  useEffect(() => {
-    if (product?.sizes && product.sizes.length > 0) {
-      if (!selectedSize || !product.sizes.includes(selectedSize)) {
-        setSelectedSize(product.sizes[1] ?? product.sizes[0] ?? "");
+  // Active colorway object
+  const activeColorObj = useMemo(() => {
+    return product?.colors.find((c) => c.name === selectedColor) ?? product?.colors[0];
+  }, [product, selectedColor]);
+
+  // Sizes available specifically for this selected color (or fallback to product.sizes)
+  const availableSizesForColor = useMemo(() => {
+    if (activeColorObj?.sizes && activeColorObj.sizes.length > 0) {
+      return activeColorObj.sizes;
+    }
+    return product?.sizes || [];
+  }, [activeColorObj, product]);
+
+  // Active images list for carousel: includes color-specific image if available
+  const carouselImages: string[] = useMemo(() => {
+    if (!product) return [];
+    const list: string[] = product.images && product.images.length > 0 ? [...product.images] : [];
+    if (activeColorObj?.image && !list.includes(activeColorObj.image)) {
+      list.unshift(activeColorObj.image);
+    }
+    return list;
+  }, [product, activeColorObj]);
+
+  // Handle color selection: dynamically switch carousel to color's image and sync sizes
+  const handleSelectColor = (colorName: string) => {
+    setSelectedColor(colorName);
+    const colorObj = product?.colors.find((c) => c.name === colorName);
+    if (colorObj) {
+      // 1. If colorway has an attached image, find its slide in carousel and switch immediately
+      if (colorObj.image) {
+        const foundIdx = carouselImages.indexOf(colorObj.image);
+        if (foundIdx !== -1) {
+          setSelectedImgIndex(foundIdx);
+        } else {
+          setSelectedImgIndex(0);
+        }
+      }
+
+      // 2. Adjust selected size if current size isn't available for this colorway
+      const validSizes =
+        colorObj.sizes && colorObj.sizes.length > 0 ? colorObj.sizes : product?.sizes || [];
+      if (!validSizes.includes(selectedSize) && validSizes.length > 0 && validSizes[0]) {
+        setSelectedSize(validSizes[0]);
       }
     }
-  }, [product, selectedSize]);
+  };
+
+  // Keep selected size in sync if available sizes change
+  useEffect(() => {
+    if (availableSizesForColor.length > 0 && availableSizesForColor[0]) {
+      if (!selectedSize || !availableSizesForColor.includes(selectedSize)) {
+        setSelectedSize(availableSizesForColor[0]);
+      }
+    }
+  }, [availableSizesForColor, selectedSize]);
 
   useEffect(() => {
     if (product?.colors && product.colors.length > 0) {
@@ -124,7 +171,7 @@ function ProductDetailsPage() {
       slug: product.slug,
       name: product.name,
       price: product.price,
-      image: product.images?.[0] ?? FALLBACK_PRODUCT_IMAGE,
+      image: activeColorObj?.image || carouselImages[0] || FALLBACK_PRODUCT_IMAGE,
       size: selectedSize,
       color: selectedColor,
       qty: quantity,
@@ -177,8 +224,8 @@ function ProductDetailsPage() {
             <div className="group relative aspect-[3/4] w-full overflow-hidden bg-zinc-950 border border-white/10">
               <img
                 src={
-                  product.images && product.images.length > 0
-                    ? (product.images[selectedImgIndex] ?? product.images[0])
+                  carouselImages && carouselImages.length > 0
+                    ? (carouselImages[selectedImgIndex] ?? carouselImages[0])
                     : FALLBACK_PRODUCT_IMAGE
                 }
                 alt={product.name}
@@ -196,13 +243,13 @@ function ProductDetailsPage() {
               </div>
 
               {/* Interactive Carousel Arrow Controls */}
-              {product.images && product.images.length > 1 && (
+              {carouselImages && carouselImages.length > 1 && (
                 <>
                   <button
                     type="button"
                     onClick={() =>
                       setSelectedImgIndex((prev) =>
-                        prev > 0 ? prev - 1 : product.images.length - 1,
+                        prev > 0 ? prev - 1 : carouselImages.length - 1,
                       )
                     }
                     className="absolute left-3 top-1/2 -translate-y-1/2 h-10 w-10 flex items-center justify-center bg-black/70 hover:bg-white hover:text-black text-white border border-white/20 transition-all rounded-full z-20 opacity-0 group-hover:opacity-100 focus:opacity-100"
@@ -214,7 +261,7 @@ function ProductDetailsPage() {
                     type="button"
                     onClick={() =>
                       setSelectedImgIndex((prev) =>
-                        prev < product.images.length - 1 ? prev + 1 : 0,
+                        prev < carouselImages.length - 1 ? prev + 1 : 0,
                       )
                     }
                     className="absolute right-3 top-1/2 -translate-y-1/2 h-10 w-10 flex items-center justify-center bg-black/70 hover:bg-white hover:text-black text-white border border-white/20 transition-all rounded-full z-20 opacity-0 group-hover:opacity-100 focus:opacity-100"
@@ -223,12 +270,12 @@ function ProductDetailsPage() {
                     <ChevronRight className="h-5 w-5" />
                   </button>
                   <div className="absolute bottom-4 right-4 bg-black/85 backdrop-blur-md px-2.5 py-1 text-[11px] font-mono border border-white/20 text-white z-10 font-bold">
-                    0{selectedImgIndex + 1} / 0{product.images.length}
+                    0{selectedImgIndex + 1} / 0{carouselImages.length}
                   </div>
                 </>
               )}
 
-              {(!product.images || product.images.length === 0) && (
+              {(!carouselImages || carouselImages.length === 0) && (
                 <div className="absolute bottom-4 left-4 right-4 bg-black/90 p-3 border border-white/10 text-center">
                   <p className="text-xs text-zinc-400 font-mono">
                     Stock imagery removed. Upload custom photos in Admin panel.
@@ -238,9 +285,9 @@ function ProductDetailsPage() {
             </div>
 
             {/* Thumbnail Selection */}
-            {product.images && product.images.length > 1 && (
+            {carouselImages && carouselImages.length > 1 && (
               <div className="flex gap-3 overflow-x-auto pb-2">
-                {product.images.map((img, idx) => (
+                {carouselImages.map((img: string, idx: number) => (
                   <button
                     key={idx}
                     onClick={() => setSelectedImgIndex(idx)}
@@ -312,6 +359,11 @@ function ProductDetailsPage() {
                 <span className="font-bold uppercase tracking-wider text-white">
                   Colorway: <span className="text-zinc-400 font-normal">{selectedColor}</span>
                 </span>
+                {activeColorObj?.image && (
+                  <span className="text-[10px] text-zinc-400 font-mono">
+                    ✦ Color photo preview active
+                  </span>
+                )}
               </div>
               <div className="flex flex-wrap gap-3">
                 {product.colors.map((color) => {
@@ -319,11 +371,12 @@ function ProductDetailsPage() {
                   return (
                     <button
                       key={color.name}
-                      onClick={() => setSelectedColor(color.name)}
+                      type="button"
+                      onClick={() => handleSelectColor(color.name)}
                       className={cn(
                         "group relative flex items-center gap-2 border px-3.5 py-2 text-xs font-bold uppercase transition-all",
                         isSelected
-                          ? "border-white bg-white/10 text-white"
+                          ? "border-white bg-white/10 text-white shadow-[0_0_15px_rgba(255,255,255,0.15)]"
                           : "border-white/15 text-zinc-400 hover:border-white/40 hover:text-white",
                       )}
                     >
@@ -332,6 +385,9 @@ function ProductDetailsPage() {
                         style={{ backgroundColor: color.hex }}
                       />
                       <span>{color.name}</span>
+                      {color.image && (
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" title="Color photo available" />
+                      )}
                     </button>
                   );
                 })}
@@ -343,6 +399,11 @@ function ProductDetailsPage() {
               <div className="flex justify-between items-center text-xs mb-3">
                 <span className="font-bold uppercase tracking-wider text-white">
                   Select Size: <span className="text-zinc-400 font-normal">{selectedSize}</span>
+                  {availableSizesForColor.length > 0 && (
+                    <span className="ml-2 text-[10px] text-zinc-500 font-mono">
+                      ({availableSizesForColor.length} available for {selectedColor})
+                    </span>
+                  )}
                 </span>
                 {/* Size Guide Modal Trigger */}
                 <Dialog>
@@ -423,16 +484,26 @@ function ProductDetailsPage() {
 
               <div className="flex flex-wrap gap-2">
                 {product.sizes.map((sz) => {
+                  const isAvailable = availableSizesForColor.includes(sz);
                   const isSelected = selectedSize === sz;
                   return (
                     <button
                       key={sz}
+                      type="button"
+                      disabled={!isAvailable}
                       onClick={() => setSelectedSize(sz)}
+                      title={
+                        isAvailable
+                          ? `Size ${sz} in stock for ${selectedColor}`
+                          : `Size ${sz} currently unavailable in ${selectedColor}`
+                      }
                       className={cn(
-                        "min-w-[54px] px-4 py-3 text-xs font-black uppercase tracking-wider border transition-all text-center",
-                        isSelected
+                        "relative min-w-[54px] px-4 py-3 text-xs font-black uppercase tracking-wider border transition-all text-center",
+                        isSelected && isAvailable
                           ? "border-white bg-white text-black shadow-lg"
-                          : "border-white/15 text-zinc-300 hover:border-white/40 hover:text-white",
+                          : isAvailable
+                          ? "border-white/15 text-zinc-300 hover:border-white/40 hover:text-white"
+                          : "border-white/5 bg-zinc-950/40 text-zinc-600 line-through cursor-not-allowed opacity-30",
                       )}
                     >
                       {sz}

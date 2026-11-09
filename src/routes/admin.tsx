@@ -30,6 +30,7 @@ import {
   Check,
   ImagePlus,
   UploadCloud,
+  Palette,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -42,6 +43,7 @@ import {
   type Category,
   type CategoryItem,
   type SizeItem,
+  type ColorOption,
 } from "@/data/products";
 import {
   fetchCategories,
@@ -399,10 +401,43 @@ function AdminDashboard({
   const [newProductImages, setNewProductImages] = useState<string[]>([]);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
 
+  // Dynamic Product Colors (with per-color sizes & photo mappings)
+  const [editProductColors, setEditProductColors] = useState<ColorOption[]>([]);
+  const [newProductColors, setNewProductColors] = useState<ColorOption[]>([
+    {
+      name: "Pitch Black",
+      hex: "#0a0a0a",
+      sizes: ["S", "M", "L", "XL", "XXL"],
+    },
+    {
+      name: "Shadow Charcoal",
+      hex: "#27272a",
+      sizes: ["M", "L", "XL"],
+    },
+    {
+      name: "Ice White",
+      hex: "#f5f5f5",
+      sizes: ["S", "M", "L"],
+    },
+  ]);
+  const [newColorInputName, setNewColorInputName] = useState("");
+  const [newColorInputHex, setNewColorInputHex] = useState("#0a0a0a");
+
   useEffect(() => {
     if (editingProduct) {
       setSelectedEditProductSizes(editingProduct.sizes || []);
       setEditProductImages(editingProduct.images || []);
+      setEditProductColors(
+        editingProduct.colors && editingProduct.colors.length > 0
+          ? editingProduct.colors.map((c) => ({
+              ...c,
+              sizes: c.sizes && c.sizes.length > 0 ? c.sizes : (editingProduct.sizes || []),
+            }))
+          : [
+              { name: "Pitch Black", hex: "#0a0a0a", sizes: editingProduct.sizes || [] },
+              { name: "Ice White", hex: "#f5f5f5", sizes: editingProduct.sizes || [] },
+            ],
+      );
     }
   }, [editingProduct]);
 
@@ -681,17 +716,163 @@ function AdminDashboard({
     }
   };
 
+  // ----------------------------------------------------
+  // COLORWAY SPECIFIC SIZES & PHOTO PIPELINE
+  // ----------------------------------------------------
+  const handleUploadColorPhoto = async (
+    files: FileList | null,
+    colorIndex: number,
+    isEdit: boolean,
+  ) => {
+    if (!files || files.length === 0) return;
+    const file = files[0];
+    if (!file) return;
+
+    setIsUploadingImage(true);
+    const prodId = isEdit && editingProduct ? editingProduct.id : `dcx-new-${Date.now()}`;
+
+    try {
+      const res = await uploadProductImage(file, prodId);
+      if (res.url) {
+        if (isEdit) {
+          setEditProductColors((prev) =>
+            prev.map((c, idx) => (idx === colorIndex ? { ...c, image: res.url } : c)),
+          );
+          setEditProductImages((prev) => (prev.includes(res.url) ? prev : [...prev, res.url]));
+        } else {
+          setNewProductColors((prev) =>
+            prev.map((c, idx) => (idx === colorIndex ? { ...c, image: res.url } : c)),
+          );
+          setNewProductImages((prev) => (prev.includes(res.url) ? prev : [...prev, res.url]));
+        }
+        toast.success("Color Photo Attached", {
+          description: "Photo linked to colorway & added to carousel.",
+          id: `color-img-${colorIndex}`,
+        });
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Upload Failed", { description: "Could not upload colorway photo." });
+    } finally {
+      setIsUploadingImage(false);
+    }
+  };
+
+  const handleRemoveColorPhoto = (colorIndex: number, isEdit: boolean) => {
+    if (isEdit) {
+      setEditProductColors((prev) =>
+        prev.map((c, idx) => (idx === colorIndex ? { ...c, image: undefined } : c)),
+      );
+    } else {
+      setNewProductColors((prev) =>
+        prev.map((c, idx) => (idx === colorIndex ? { ...c, image: undefined } : c)),
+      );
+    }
+    toast.info("Color Photo Cleared", { description: "Unlinked photo from this colorway." });
+  };
+
+  const handleToggleColorSize = (
+    colorIndex: number,
+    sizeCode: string,
+    isEdit: boolean,
+  ) => {
+    const updateFn = (prev: ColorOption[]) =>
+      prev.map((c, idx) => {
+        if (idx !== colorIndex) return c;
+        const currentSizes = c.sizes || [];
+        const nextSizes = currentSizes.includes(sizeCode)
+          ? currentSizes.filter((s) => s !== sizeCode)
+          : [...currentSizes, sizeCode];
+        return { ...c, sizes: nextSizes };
+      });
+
+    if (isEdit) {
+      setEditProductColors(updateFn);
+    } else {
+      setNewProductColors(updateFn);
+    }
+  };
+
+  const handleSelectAllColorSizes = (colorIndex: number, isEdit: boolean) => {
+    const allCodes = sizesList.map((s) => s.code);
+    const updateFn = (prev: ColorOption[]) =>
+      prev.map((c, idx) => (idx === colorIndex ? { ...c, sizes: allCodes } : c));
+
+    if (isEdit) setEditProductColors(updateFn);
+    else setNewProductColors(updateFn);
+  };
+
+  const handleClearAllColorSizes = (colorIndex: number, isEdit: boolean) => {
+    const updateFn = (prev: ColorOption[]) =>
+      prev.map((c, idx) => (idx === colorIndex ? { ...c, sizes: [] } : c));
+
+    if (isEdit) setEditProductColors(updateFn);
+    else setNewProductColors(updateFn);
+  };
+
+  const handleAddNewColorway = (isEdit: boolean) => {
+    if (!newColorInputName.trim()) {
+      toast.error("Color Name Required", { description: "Please enter a name for the colorway." });
+      return;
+    }
+
+    const defaultSizes =
+      (isEdit && editingProduct ? editingProduct.sizes : selectedNewProductSizes) || [];
+    const newColor: ColorOption = {
+      name: newColorInputName.trim(),
+      hex: newColorInputHex.trim() || "#0a0a0a",
+      sizes: defaultSizes,
+    };
+
+    if (isEdit) {
+      setEditProductColors((prev) => [...prev, newColor]);
+    } else {
+      setNewProductColors((prev) => [...prev, newColor]);
+    }
+
+    setNewColorInputName("");
+    setNewColorInputHex("#0a0a0a");
+    toast.success("Colorway Added", {
+      description: `${newColor.name} added. You can now attach its photo and specify its sizes.`,
+    });
+  };
+
+  const handleRemoveColorway = (colorIndex: number, isEdit: boolean) => {
+    if (isEdit) {
+      if (editProductColors.length <= 1) {
+        toast.error("Cannot Remove", { description: "Product must have at least one colorway." });
+        return;
+      }
+      setEditProductColors((prev) => prev.filter((_, idx) => idx !== colorIndex));
+    } else {
+      if (newProductColors.length <= 1) {
+        toast.error("Cannot Remove", { description: "Product must have at least one colorway." });
+        return;
+      }
+      setNewProductColors((prev) => prev.filter((_, idx) => idx !== colorIndex));
+    }
+  };
+
   const handleUpdateProduct = (updated: Product) => {
+    const allColorSizes = Array.from(
+      new Set(editProductColors.flatMap((c) => c.sizes || [])),
+    );
     const finalProduct: Product = {
       ...updated,
-      sizes: selectedEditProductSizes.length > 0 ? selectedEditProductSizes : updated.sizes,
+      sizes:
+        allColorSizes.length > 0
+          ? allColorSizes
+          : selectedEditProductSizes.length > 0
+            ? selectedEditProductSizes
+            : updated.sizes,
+      colors: editProductColors,
       images: editProductImages,
     };
     const nextList = saveProductLocally(finalProduct);
     setProductsList(nextList);
     setEditingProduct(null);
     toast.success("Silhouette Updated", {
-      description: `${finalProduct.name} specs, sizes & images saved across catalog.`,
+      description: `${finalProduct.name} specs, colors, sizes & images saved across catalog.`,
       id: `prod-update-${finalProduct.id}`,
     });
   };
@@ -724,6 +905,10 @@ function AdminDashboard({
     const chosenSizes =
       selectedNewProductSizes.length > 0 ? selectedNewProductSizes : ["S", "M", "L", "XL", "XXL"];
 
+    const allColorSizes = Array.from(
+      new Set(newProductColors.flatMap((c) => c.sizes || [])),
+    );
+
     const newProd: Product = {
       id: `dcx-00${productsList.length + 1}`,
       slug: (formData.get("slug") as string) || `drop-0${productsList.length + 1}`,
@@ -734,11 +919,8 @@ function AdminDashboard({
       rating: 5.0,
       reviews: 1,
       images: newProductImages.length > 0 ? newProductImages : [],
-      colors: [
-        { name: "Pitch Black", hex: "#0a0a0a" },
-        { name: "Ice White", hex: "#f5f5f5" },
-      ],
-      sizes: chosenSizes,
+      colors: newProductColors,
+      sizes: allColorSizes.length > 0 ? allColorSizes : chosenSizes,
       description:
         (formData.get("description") as string) ||
         "Engineered heavyweight dark streetwear silhouette.",
@@ -2617,6 +2799,169 @@ function AdminDashboard({
                 </div>
               </div>
 
+              {/* COLORWAYS, PER-COLOR SIZES & COLOR PHOTO ATTACHMENT */}
+              <div className="space-y-3 border-t border-b border-white/10 py-3.5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="block text-zinc-300 uppercase font-bold tracking-wider text-xs">
+                      Colorways, Size Stocks & Color Photos ({editProductColors.length})
+                    </label>
+                    <span className="text-[10px] text-zinc-500">
+                      Clicking a colorway on storefront switches to its photo and filters available sizes.
+                    </span>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  {editProductColors.map((color, colorIdx) => (
+                    <div
+                      key={colorIdx}
+                      className="p-3 border border-white/10 bg-black/60 rounded-lg space-y-2.5"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="h-5 w-5 rounded-full border border-white/30 shrink-0 shadow-sm"
+                            style={{ backgroundColor: color.hex }}
+                          />
+                          <span className="font-bold text-white text-xs">{color.name}</span>
+                          <span className="text-[10px] font-mono text-zinc-400">({color.hex})</span>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="file"
+                            id={`edit-color-upload-${colorIdx}`}
+                            accept="image/*"
+                            onChange={(e) =>
+                              handleUploadColorPhoto(e.target.files, colorIdx, true)
+                            }
+                            className="hidden"
+                          />
+                          <label
+                            htmlFor={`edit-color-upload-${colorIdx}`}
+                            className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded border border-white/20 bg-zinc-900 text-zinc-300 hover:text-white hover:border-white cursor-pointer inline-flex items-center gap-1.5"
+                          >
+                            <UploadCloud className="h-3 w-3" />
+                            {color.image ? "Change Photo" : "Upload Color Photo"}
+                          </label>
+
+                          {color.image && (
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveColorPhoto(colorIdx, true)}
+                              className="p-1 text-zinc-500 hover:text-red-400 rounded"
+                              title="Clear photo for this colorway"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+
+                          {editProductColors.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveColorway(colorIdx, true)}
+                              className="p-1 text-zinc-500 hover:text-red-400 rounded ml-1"
+                              title="Remove colorway"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Colorway Photo Preview */}
+                      {color.image && (
+                        <div className="flex items-center gap-3 p-2 bg-zinc-950 border border-white/10 rounded">
+                          <div className="relative aspect-[3/4] h-14 rounded overflow-hidden border border-white/20 shrink-0">
+                            <img src={color.image} alt="" className="h-full w-full object-cover" />
+                          </div>
+                          <div className="text-[11px] space-y-0.5">
+                            <span className="text-emerald-400 font-mono font-bold block">
+                              ✓ Photo linked to {color.name}
+                            </span>
+                            <span className="text-[10px] text-zinc-500 block">
+                              Clicking "{color.name}" on the storefront will slide the carousel directly to this photo.
+                            </span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Available Sizes for this specific Colorway */}
+                      <div className="pt-1">
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+                            Available sizes for {color.name}:
+                          </span>
+                          <div className="flex items-center gap-2 text-[10px]">
+                            <button
+                              type="button"
+                              onClick={() => handleSelectAllColorSizes(colorIdx, true)}
+                              className="text-zinc-400 hover:text-white underline cursor-pointer"
+                            >
+                              All Sizes
+                            </button>
+                            <span>·</span>
+                            <button
+                              type="button"
+                              onClick={() => handleClearAllColorSizes(colorIdx, true)}
+                              className="text-red-400 hover:text-red-300 underline cursor-pointer"
+                            >
+                              Clear
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap gap-1.5">
+                          {sizesList.map((sz) => {
+                            const isChecked = (color.sizes || []).includes(sz.code);
+                            return (
+                              <button
+                                key={sz.code}
+                                type="button"
+                                onClick={() => handleToggleColorSize(colorIdx, sz.code, true)}
+                                className={`px-2.5 py-1 rounded text-[11px] font-mono font-bold transition-all border ${
+                                  isChecked
+                                    ? "bg-white text-black border-white shadow-sm"
+                                    : "bg-zinc-900 text-zinc-500 border-white/10 hover:border-white/30 hover:text-zinc-300"
+                                }`}
+                              >
+                                {sz.code}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Inline Add New Colorway Bar */}
+                  <div className="flex items-center gap-2 p-2.5 bg-zinc-950 border border-dashed border-white/20 rounded">
+                    <input
+                      type="color"
+                      value={newColorInputHex}
+                      onChange={(e) => setNewColorInputHex(e.target.value)}
+                      className="h-8 w-8 rounded border border-white/20 bg-transparent cursor-pointer shrink-0"
+                      title="Choose color shade"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Colorway Name (e.g. Bone White, Desert Taupe)"
+                      value={newColorInputName}
+                      onChange={(e) => setNewColorInputName(e.target.value)}
+                      className="flex-1 border border-white/15 bg-black px-3 py-1.5 text-xs text-white rounded focus:border-white focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleAddNewColorway(true)}
+                      className="px-3.5 py-1.5 bg-white text-black text-xs font-bold uppercase tracking-wider rounded hover:bg-zinc-200 shrink-0"
+                    >
+                      + Add Color
+                    </button>
+                  </div>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
                   Description
@@ -2893,6 +3238,169 @@ function AdminDashboard({
                       </span>
                     )}
                   </label>
+                </div>
+              </div>
+
+              {/* COLORWAYS, PER-COLOR SIZES & COLOR PHOTO ATTACHMENT */}
+              <div className="space-y-3 border-t border-b border-white/10 py-3.5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="block text-zinc-300 uppercase font-bold tracking-wider text-xs">
+                      Colorways, Size Stocks & Color Photos ({newProductColors.length})
+                    </label>
+                    <span className="text-[10px] text-zinc-500">
+                      Clicking a colorway on storefront switches to its photo and filters available sizes.
+                    </span>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  {newProductColors.map((color, colorIdx) => (
+                    <div
+                      key={colorIdx}
+                      className="p-3 border border-white/10 bg-black/60 rounded-lg space-y-2.5"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="h-5 w-5 rounded-full border border-white/30 shrink-0 shadow-sm"
+                            style={{ backgroundColor: color.hex }}
+                          />
+                          <span className="font-bold text-white text-xs">{color.name}</span>
+                          <span className="text-[10px] font-mono text-zinc-400">({color.hex})</span>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="file"
+                            id={`add-color-upload-${colorIdx}`}
+                            accept="image/*"
+                            onChange={(e) =>
+                              handleUploadColorPhoto(e.target.files, colorIdx, false)
+                            }
+                            className="hidden"
+                          />
+                          <label
+                            htmlFor={`add-color-upload-${colorIdx}`}
+                            className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded border border-white/20 bg-zinc-900 text-zinc-300 hover:text-white hover:border-white cursor-pointer inline-flex items-center gap-1.5"
+                          >
+                            <UploadCloud className="h-3 w-3" />
+                            {color.image ? "Change Photo" : "Upload Color Photo"}
+                          </label>
+
+                          {color.image && (
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveColorPhoto(colorIdx, false)}
+                              className="p-1 text-zinc-500 hover:text-red-400 rounded"
+                              title="Clear photo for this colorway"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+
+                          {newProductColors.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveColorway(colorIdx, false)}
+                              className="p-1 text-zinc-500 hover:text-red-400 rounded ml-1"
+                              title="Remove colorway"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Colorway Photo Preview */}
+                      {color.image && (
+                        <div className="flex items-center gap-3 p-2 bg-zinc-950 border border-white/10 rounded">
+                          <div className="relative aspect-[3/4] h-14 rounded overflow-hidden border border-white/20 shrink-0">
+                            <img src={color.image} alt="" className="h-full w-full object-cover" />
+                          </div>
+                          <div className="text-[11px] space-y-0.5">
+                            <span className="text-emerald-400 font-mono font-bold block">
+                              ✓ Photo linked to {color.name}
+                            </span>
+                            <span className="text-[10px] text-zinc-500 block">
+                              Clicking "{color.name}" on the storefront will slide the carousel directly to this photo.
+                            </span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Available Sizes for this specific Colorway */}
+                      <div className="pt-1">
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+                            Available sizes for {color.name}:
+                          </span>
+                          <div className="flex items-center gap-2 text-[10px]">
+                            <button
+                              type="button"
+                              onClick={() => handleSelectAllColorSizes(colorIdx, false)}
+                              className="text-zinc-400 hover:text-white underline cursor-pointer"
+                            >
+                              All Sizes
+                            </button>
+                            <span>·</span>
+                            <button
+                              type="button"
+                              onClick={() => handleClearAllColorSizes(colorIdx, false)}
+                              className="text-red-400 hover:text-red-300 underline cursor-pointer"
+                            >
+                              Clear
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap gap-1.5">
+                          {sizesList.map((sz) => {
+                            const isChecked = (color.sizes || []).includes(sz.code);
+                            return (
+                              <button
+                                key={sz.code}
+                                type="button"
+                                onClick={() => handleToggleColorSize(colorIdx, sz.code, false)}
+                                className={`px-2.5 py-1 rounded text-[11px] font-mono font-bold transition-all border ${
+                                  isChecked
+                                    ? "bg-white text-black border-white shadow-sm"
+                                    : "bg-zinc-900 text-zinc-500 border-white/10 hover:border-white/30 hover:text-zinc-300"
+                                }`}
+                              >
+                                {sz.code}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Inline Add New Colorway Bar */}
+                  <div className="flex items-center gap-2 p-2.5 bg-zinc-950 border border-dashed border-white/20 rounded">
+                    <input
+                      type="color"
+                      value={newColorInputHex}
+                      onChange={(e) => setNewColorInputHex(e.target.value)}
+                      className="h-8 w-8 rounded border border-white/20 bg-transparent cursor-pointer shrink-0"
+                      title="Choose color shade"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Colorway Name (e.g. Bone White, Desert Taupe)"
+                      value={newColorInputName}
+                      onChange={(e) => setNewColorInputName(e.target.value)}
+                      className="flex-1 border border-white/15 bg-black px-3 py-1.5 text-xs text-white rounded focus:border-white focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleAddNewColorway(false)}
+                      className="px-3.5 py-1.5 bg-white text-black text-xs font-bold uppercase tracking-wider rounded hover:bg-zinc-200 shrink-0"
+                    >
+                      + Add Color
+                    </button>
+                  </div>
                 </div>
               </div>
 
