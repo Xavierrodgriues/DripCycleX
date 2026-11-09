@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, useCallback, type React
 import { toast } from "sonner";
 import { broadcastSync } from "@/lib/sync-channel";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { normalizePhoneNumber } from "@/lib/otp-service";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 
 export interface CustomerUser {
@@ -371,8 +372,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             status: "active",
           };
 
-          setUsers((prev) => [newUser, ...prev.filter((u) => u.email !== cleanEmail)]);
+          setUsers((prev) => {
+            const next = [newUser, ...prev.filter((u) => u.email !== cleanEmail)];
+            try {
+              localStorage.setItem(USERS_KEY, JSON.stringify(next));
+            } catch (e) {
+              console.warn("Storage sync notice:", e);
+            }
+            return next;
+          });
           setCurrentUser(newUser);
+
+          // Cache credentials locally so user can always log in with phone or email on this device
+          try {
+            const passwords: StoredUserCredential[] = JSON.parse(
+              localStorage.getItem(PASSWORDS_KEY) || "[]",
+            );
+            const nextPasswords = [
+              ...passwords.filter((p) => p.email !== cleanEmail && p.phone !== cleanPhone),
+              {
+                email: cleanEmail,
+                phone: cleanPhone,
+                password,
+                userId: sbUser.id,
+              },
+            ];
+            localStorage.setItem(PASSWORDS_KEY, JSON.stringify(nextPasswords));
+          } catch (e) {
+            console.warn("Local password cache notice:", e);
+          }
 
           if (!authData.session) {
             toast.success("Account Registered!", {
@@ -442,35 +470,172 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [users],
   );
 
-  // Login
+  // Login (supports Email + Password OR Mobile Number + Password)
   const login = useCallback(
     async (emailOrPhone: string, password: string): Promise<boolean> => {
       try {
         const cleanInput = emailOrPhone.trim();
+        const isEmail = cleanInput.includes("@");
         let emailToAuth = cleanInput.toLowerCase();
 
-        if (isSupabaseConfigured) {
-          // If input is phone number without '@', look up corresponding email in profiles
-          if (!cleanInput.includes("@")) {
-            try {
-              const { data: foundProfile } = await supabase
-                .from("profiles")
-                .select("email")
-                .eq("phone", cleanInput)
-                .maybeSingle();
+        // If user entered a mobile number, resolve it to the associated email
+        if (!isEmail) {
+          const { national, e164, clean: digits } = normalizePhoneNumber(cleanInput);
+          let resolvedEmail: string | null = null;
 
-              if (foundProfile && typeof foundProfile === "object" && "email" in foundProfile) {
-                const pEmail = (foundProfile as { email?: string }).email;
-                if (pEmail) emailToAuth = pEmail.toLowerCase();
-              } else {
-                const localMatch = users.find((u) => u.phone.trim() === cleanInput);
-                if (localMatch?.email) emailToAuth = localMatch.email.toLowerCase();
+          if (isSupabaseConfigured) {
+            // 1. Try PostgreSQL RPC function (SECURITY DEFINER bypasses RLS safely)
+            try {
+              const { data: rpcEmail, error: rpcErr } = await supabase.rpc("get_email_by_phone", {
+                p_phone: cleanInput,
+              });
+              if (!rpcErr && rpcEmail && typeof rpcEmail === "string" && rpcEmail.includes("@")) {
+                resolvedEmail = rpcEmail.trim().toLowerCase();
               }
             } catch (e: unknown) {
-              console.warn("Phone lookup warning:", e);
+              console.warn("RPC phone lookup notice:", e);
+            }
+
+            // 2. Direct profiles table query with multiple phone variations
+            if (!resolvedEmail) {
+              try {
+                const orConditions = [
+                  `phone.eq.${cleanInput}`,
+                  `phone.eq.${national}`,
+                  `phone.eq.${e164}`,
+                  `phone.eq.+91 ${national}`,
+                  `phone.ilike.%${national}%`,
+                ].join(",");
+
+                const { data: foundProfiles } = await supabase
+                  .from("profiles")
+                  .select("email, phone")
+                  .or(orConditions)
+                  .limit(1);
+
+                if (foundProfiles && foundProfiles.length > 0 && foundProfiles[0]?.email) {
+                  resolvedEmail = (foundProfiles[0].email as string).trim().toLowerCase();
+                }
+              } catch (e: unknown) {
+                console.warn("Direct profiles phone lookup notice:", e);
+              }
             }
           }
 
+          // 3. Check in-memory state & localStorage users list
+          if (!resolvedEmail) {
+            const storedUsers: CustomerUser[] = (() => {
+              try {
+                const raw = localStorage.getItem(USERS_KEY);
+                return raw ? JSON.parse(raw) : [];
+              } catch {
+                return [];
+              }
+            })();
+            const combinedUsers = [...users, ...storedUsers];
+            const matchedUser = combinedUsers.find((u) => {
+              if (!u.phone) return false;
+              const uNorm = normalizePhoneNumber(u.phone);
+              return (
+                uNorm.national === national ||
+                uNorm.clean === digits ||
+                u.phone.replace(/\D/g, "").includes(national)
+              );
+            });
+            if (matchedUser?.email) {
+              resolvedEmail = matchedUser.email.trim().toLowerCase();
+            }
+          }
+
+          // 4. Check cached credentials in localStorage
+          if (!resolvedEmail) {
+            try {
+              const creds: StoredUserCredential[] = JSON.parse(
+                localStorage.getItem(PASSWORDS_KEY) || "[]",
+              );
+              const matchedCred = creds.find((c) => {
+                if (!c.phone) return false;
+                const cNorm = normalizePhoneNumber(c.phone);
+                return (
+                  cNorm.national === national ||
+                  cNorm.clean === digits ||
+                  c.phone.replace(/\D/g, "").includes(national)
+                );
+              });
+              if (matchedCred?.email) {
+                resolvedEmail = matchedCred.email.trim().toLowerCase();
+              }
+            } catch (e: unknown) {
+              console.warn("Cached credentials phone lookup notice:", e);
+            }
+          }
+
+          if (resolvedEmail) {
+            emailToAuth = resolvedEmail;
+          } else {
+            // If phone could not be resolved to an email:
+            // Attempt Supabase phone auth if configured, or check offline credentials
+            if (isSupabaseConfigured) {
+              try {
+                const { data: phoneAuthData, error: phoneAuthError } =
+                  await supabase.auth.signInWithPassword({
+                    phone: e164,
+                    password,
+                  });
+
+                if (!phoneAuthError && phoneAuthData.user) {
+                  const customerUser = await fetchAndSyncProfile(phoneAuthData.user);
+                  if (customerUser.status === "suspended") {
+                    await supabase.auth.signOut();
+                    toast.error("Account Suspended", {
+                      description: "Please contact Dripcyclex@gmail.com for assistance.",
+                    });
+                    return false;
+                  }
+                  setCurrentUser(customerUser);
+                  setUsers((prev) => [customerUser, ...prev.filter((u) => u.id !== customerUser.id)]);
+                  toast.success("Welcome Back", {
+                    description: `Signed in as ${customerUser.name}.`,
+                  });
+                  return true;
+                }
+              } catch {
+                // Ignore and proceed to fallback
+              }
+            }
+
+            // Offline credentials fallback check
+            const passwords: StoredUserCredential[] = JSON.parse(
+              localStorage.getItem(PASSWORDS_KEY) || "[]",
+            );
+            const matchedCred = passwords.find((c) => {
+              const cNorm = normalizePhoneNumber(c.phone || "");
+              return (
+                (cNorm.national === national || c.phone === cleanInput) &&
+                c.password === password
+              );
+            });
+
+            if (matchedCred) {
+              const foundUser = users.find((u) => u.id === matchedCred.userId);
+              if (foundUser && foundUser.status !== "suspended") {
+                setCurrentUser(foundUser);
+                toast.success("Welcome Back", {
+                  description: `Signed in as ${foundUser.name}.`,
+                });
+                return true;
+              }
+            }
+
+            toast.error("Account Not Found", {
+              description: `No registered account found with mobile number ${cleanInput}. Please check your number or sign in with your email address.`,
+            });
+            return false;
+          }
+        }
+
+        // Now authenticate with resolved email (or entered email)
+        if (isSupabaseConfigured) {
           const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
             email: emailToAuth,
             password,
@@ -481,11 +646,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             const passwords: StoredUserCredential[] = JSON.parse(
               localStorage.getItem(PASSWORDS_KEY) || "[]",
             );
-            const matchedCred = passwords.find(
-              (c) =>
-                (c.email === cleanInput.toLowerCase() || c.phone === cleanInput) &&
-                c.password === password,
-            );
+            const inputNorm = !isEmail ? normalizePhoneNumber(cleanInput).national : "";
+            const matchedCred = passwords.find((c) => {
+              const cNorm = normalizePhoneNumber(c.phone || "").national;
+              return (
+                (c.email === emailToAuth ||
+                  c.email === cleanInput.toLowerCase() ||
+                  (inputNorm && cNorm === inputNorm) ||
+                  c.phone === cleanInput) &&
+                c.password === password
+              );
+            });
 
             if (matchedCred) {
               const foundUser = users.find((u) => u.id === matchedCred.userId);
@@ -499,7 +670,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             }
 
             toast.error("Authentication Failed", {
-              description: authError.message || "Incorrect email or password.",
+              description: authError.message || "Incorrect email, mobile number, or password.",
             });
             return false;
           }
@@ -523,20 +694,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         }
 
-        // Offline / LocalStorage Fallback
+        // Offline / LocalStorage Fallback (if Supabase not configured)
         const passwords: StoredUserCredential[] = JSON.parse(
           localStorage.getItem(PASSWORDS_KEY) || "[]",
         );
+        const inputNorm = !isEmail ? normalizePhoneNumber(cleanInput).national : "";
 
-        const matchedCred = passwords.find(
-          (c) =>
-            (c.email === cleanInput.toLowerCase() || c.phone === cleanInput) &&
-            c.password === password,
-        );
+        const matchedCred = passwords.find((c) => {
+          const cNorm = normalizePhoneNumber(c.phone || "").national;
+          return (
+            (c.email === emailToAuth ||
+              c.email === cleanInput.toLowerCase() ||
+              (inputNorm && cNorm === inputNorm) ||
+              c.phone === cleanInput) &&
+            c.password === password
+          );
+        });
 
         if (!matchedCred) {
           toast.error("Authentication Failed", {
-            description: "Incorrect email, phone number, or password.",
+            description: "Incorrect email, mobile number, or password.",
           });
           return false;
         }
@@ -590,14 +767,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // 2. Find profile by phone
         let userProfile: CustomerUser | null = null;
         if (isSupabaseConfigured) {
-          const { data: foundProfiles } = await supabase
-            .from("profiles")
-            .select("*")
-            .or(`phone.eq.${phone},phone.eq.${national},phone.eq.+91${national}`)
-            .limit(1);
+          try {
+            const { data: rpcEmail } = await supabase.rpc("get_email_by_phone", {
+              p_phone: phone,
+            });
+            if (rpcEmail) {
+              const { data: foundProfiles } = await supabase
+                .from("profiles")
+                .select("*")
+                .eq("email", rpcEmail)
+                .limit(1);
+              if (foundProfiles?.[0]) {
+                userProfile = mapProfileToCustomer(foundProfiles[0] as ProfileRow);
+              }
+            }
+          } catch {
+            // Fallback to direct query
+          }
 
-          if (foundProfiles && foundProfiles.length > 0 && foundProfiles[0]) {
-            userProfile = mapProfileToCustomer(foundProfiles[0] as ProfileRow);
+          if (!userProfile) {
+            const { data: foundProfiles } = await supabase
+              .from("profiles")
+              .select("*")
+              .or(`phone.eq.${phone},phone.eq.${national},phone.eq.+91${national}`)
+              .limit(1);
+
+            if (foundProfiles && foundProfiles.length > 0 && foundProfiles[0]) {
+              userProfile = mapProfileToCustomer(foundProfiles[0] as ProfileRow);
+            }
           }
         }
 

@@ -6,7 +6,10 @@ export function normalizePhoneNumber(rawPhone: string): {
   e164: string;
   national: string;
 } {
-  const digits = rawPhone.replace(/\D/g, "");
+  let digits = (rawPhone || "").replace(/\D/g, "");
+  if (digits.length === 11 && digits.startsWith("0")) {
+    digits = digits.slice(1);
+  }
   const national = digits.length === 12 && digits.startsWith("91") ? digits.slice(2) : digits;
   const e164 = `+91${national}`;
   return {
