@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react";
 import { toast } from "sonner";
-import { broadcastSync } from "@/lib/sync-channel";
+import { broadcastSync, useRealtimeSync, type SyncPayload } from "@/lib/sync-channel";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { normalizePhoneNumber } from "@/lib/otp-service";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
@@ -32,6 +32,7 @@ export interface UserCartRecord {
   userPhone: string;
   userEmail: string;
   productName: string;
+  productImage?: string | undefined;
   size: string;
   color: string;
   qty: number;
@@ -65,12 +66,13 @@ interface AuthContextType {
   logout: () => Promise<void>;
   updateProfile: (data: Partial<CustomerUser>) => Promise<void>;
   syncCartToAdmin: (
-    cart: { name: string; size: string; color: string; qty: number; price: number }[],
+    cart: { name: string; size: string; color: string; qty: number; price: number; image?: string }[],
   ) => void;
   syncWishlistToAdmin: (
     productSlugs: string[],
     allProducts: { id: string; slug: string; name: string; category: string; price: number }[],
   ) => void;
+  setUserStatus: (userId: string, status: "active" | "suspended") => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -101,6 +103,8 @@ interface UserMetadataShape {
   state?: string | undefined;
   zipCode?: string | undefined;
   postal_code?: string | undefined;
+  role?: string | undefined;
+  status?: string | undefined;
   shipping_address?: ShippingAddressShape | undefined;
 }
 
@@ -133,7 +137,12 @@ function mapProfileToCustomer(
     registeredAt: profile.created_at
       ? profile.created_at.slice(0, 10)
       : new Date().toISOString().slice(0, 10),
-    status: profile.role === "suspended" ? "suspended" : "active",
+    status:
+      (profile as any)?.status === "suspended" ||
+      profile.role === "suspended" ||
+      fallbackMeta?.role === "suspended"
+        ? "suspended"
+        : "active",
   };
 }
 
@@ -217,7 +226,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [currentUser, setCurrentUser] = useState<CustomerUser | null>(() => {
     try {
       const saved = localStorage.getItem(CURRENT_USER_KEY);
-      return saved ? JSON.parse(saved) : null;
+      if (!saved) return null;
+      const parsed: CustomerUser = JSON.parse(saved);
+      if (parsed.status === "suspended") {
+        localStorage.removeItem(CURRENT_USER_KEY);
+        return null;
+      }
+      return parsed;
     } catch {
       return null;
     }
@@ -231,7 +246,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Sync currentUser to localStorage
   useEffect(() => {
     if (currentUser) {
-      localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(currentUser));
+      if (currentUser.status === "suspended") {
+        localStorage.removeItem(CURRENT_USER_KEY);
+        setCurrentUser(null);
+      } else {
+        localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(currentUser));
+      }
     } else {
       localStorage.removeItem(CURRENT_USER_KEY);
     }
@@ -245,6 +265,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
         fetchAndSyncProfile(session.user).then((cUser) => {
+          if (cUser.status === "suspended") {
+            void supabase.auth.signOut();
+            setCurrentUser(null);
+            localStorage.removeItem(CURRENT_USER_KEY);
+            toast.error("Account Suspended", {
+              description: "Your account has been suspended by administration. Access is blocked.",
+              duration: 8000,
+            });
+            return;
+          }
           setCurrentUser(cUser);
           setUsers((prev) => [cUser, ...prev.filter((u) => u.id !== cUser.id)]);
         });
@@ -257,6 +287,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       if ((event === "SIGNED_IN" || event === "TOKEN_REFRESHED") && session?.user) {
         const cUser = await fetchAndSyncProfile(session.user);
+        if (cUser.status === "suspended") {
+          await supabase.auth.signOut();
+          setCurrentUser(null);
+          localStorage.removeItem(CURRENT_USER_KEY);
+          toast.error("Account Suspended", {
+            description: "Your account has been suspended by administration. Access is blocked.",
+            duration: 8000,
+          });
+          return;
+        }
         setCurrentUser(cUser);
         setUsers((prev) => [cUser, ...prev.filter((u) => u.id !== cUser.id)]);
       } else if (event === "SIGNED_OUT") {
@@ -618,7 +658,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
             if (matchedCred) {
               const foundUser = users.find((u) => u.id === matchedCred.userId);
-              if (foundUser && foundUser.status !== "suspended") {
+              if (foundUser?.status === "suspended") {
+                toast.error("Account Suspended", {
+                  description: "Your account has been suspended by administration. Access is blocked.",
+                  duration: 8000,
+                });
+                return false;
+              }
+              if (foundUser) {
                 setCurrentUser(foundUser);
                 toast.success("Welcome Back", {
                   description: `Signed in as ${foundUser.name}.`,
@@ -660,7 +707,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
             if (matchedCred) {
               const foundUser = users.find((u) => u.id === matchedCred.userId);
-              if (foundUser && foundUser.status !== "suspended") {
+              if (foundUser?.status === "suspended") {
+                toast.error("Account Suspended", {
+                  description: "Your account has been suspended by administration. Access is blocked.",
+                  duration: 8000,
+                });
+                return false;
+              }
+              if (foundUser) {
                 setCurrentUser(foundUser);
                 toast.success("Welcome Back", {
                   description: `Signed in as ${foundUser.name}.`,
@@ -887,7 +941,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Sync Cart lines to Admin storage
   const syncCartToAdmin = useCallback(
-    (cart: { name: string; size: string; color: string; qty: number; price: number }[]) => {
+    (cart: { name: string; size: string; color: string; qty: number; price: number; image?: string }[]) => {
       try {
         const allAdminCarts: UserCartRecord[] = JSON.parse(
           localStorage.getItem(CARTS_KEY) || "[]",
@@ -908,6 +962,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           userPhone,
           userEmail,
           productName: line.name,
+          productImage: line.image,
           size: line.size,
           color: line.color,
           qty: line.qty,
@@ -996,6 +1051,143 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [currentUser, users],
   );
 
+  // User status toggler (Suspend / Activate) with live database persistence & immediate logout
+  const setUserStatus = useCallback(
+    async (userId: string, newStatus: "active" | "suspended"): Promise<boolean> => {
+      // 1. Update in local users state
+      setUsers((prev) =>
+        prev.map((u) => (u.id === userId ? { ...u, status: newStatus } : u)),
+      );
+
+      // 2. Update local storage users cache
+      try {
+        const stored: CustomerUser[] = JSON.parse(
+          localStorage.getItem(USERS_KEY) || "[]",
+        );
+        const updated = stored.map((u) =>
+          u.id === userId ? { ...u, status: newStatus } : u,
+        );
+        localStorage.setItem(USERS_KEY, JSON.stringify(updated));
+      } catch {
+        /* ignore */
+      }
+
+      // 3. If currently logged-in user is being suspended, terminate session immediately
+      if (currentUser?.id === userId && newStatus === "suspended") {
+        await logout();
+        toast.error("Account Suspended", {
+          description: "Your session has ended because your account was suspended by administration.",
+          duration: 9000,
+        });
+      }
+
+      // 4. Update Supabase profiles table
+      if (isSupabaseConfigured) {
+        try {
+          const { error } = await supabase
+            .from("profiles")
+            .update({
+              status: newStatus,
+              role: newStatus === "suspended" ? "suspended" : "customer",
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", userId);
+
+          if (error) {
+            console.warn("Supabase profile status update notice:", error.message);
+          }
+        } catch (err) {
+          console.warn("Exception updating profile status in Supabase:", err);
+        }
+      }
+
+      // 5. Broadcast sync across all open browser tabs and windows
+      broadcastSync("USER_STATUS_CHANGED", { userId, status: newStatus });
+      return true;
+    },
+    [currentUser, logout],
+  );
+
+  // Cross-tab Realtime Sync: Automatically log out suspended users instantly
+  useRealtimeSync(
+    useCallback(
+      (payload: SyncPayload) => {
+        if (payload.type === "USER_STATUS_CHANGED" && payload.data) {
+          const { userId, status } = payload.data as {
+            userId: string;
+            status: "active" | "suspended";
+          };
+          if (currentUser?.id === userId && status === "suspended") {
+            void logout();
+            toast.error("Account Suspended", {
+              description:
+                "You have been logged out because your account was suspended by administration.",
+              duration: 9000,
+            });
+          }
+          setUsers((prev) =>
+            prev.map((u) => (u.id === userId ? { ...u, status } : u)),
+          );
+        }
+      },
+      [currentUser, logout],
+    ),
+  );
+
+  // Window Focus verification: Enforce suspension whenever user returns to tab
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const verifyActiveStatus = async () => {
+      // 1. Check local storage users cache
+      try {
+        const localUsers: CustomerUser[] = JSON.parse(
+          localStorage.getItem(USERS_KEY) || "[]",
+        );
+        const match = localUsers.find((u) => u.id === currentUser.id);
+        if (match && match.status === "suspended") {
+          await logout();
+          toast.error("Account Suspended", {
+            description: "Your account has been suspended by administration.",
+            duration: 9000,
+          });
+          return;
+        }
+      } catch {
+        /* ignore */
+      }
+
+      // 2. Check remote Supabase profiles table
+      if (isSupabaseConfigured) {
+        try {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("status, role")
+            .eq("id", currentUser.id)
+            .maybeSingle();
+
+          if (
+            profile &&
+            ((profile as any).status === "suspended" || profile.role === "suspended")
+          ) {
+            await logout();
+            toast.error("Account Suspended", {
+              description: "Your account has been suspended by administration.",
+              duration: 9000,
+            });
+          }
+        } catch {
+          /* ignore */
+        }
+      }
+    };
+
+    window.addEventListener("focus", verifyActiveStatus);
+    return () => {
+      window.removeEventListener("focus", verifyActiveStatus);
+    };
+  }, [currentUser, logout]);
+
   return (
     <AuthContext.Provider
       value={{
@@ -1008,6 +1200,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         updateProfile,
         syncCartToAdmin,
         syncWishlistToAdmin,
+        setUserStatus,
       }}
     >
       {children}

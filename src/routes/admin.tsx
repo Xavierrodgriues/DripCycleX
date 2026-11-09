@@ -298,7 +298,7 @@ function AdminDashboard({
   onLogout: () => void;
 }) {
   const { cart, wishlist, removeLine, toggleWishlist, reloadFromStorage } = useShop();
-  const { users: authUsers, currentUser } = useAuth();
+  const { users: authUsers, currentUser, setUserStatus } = useAuth();
 
   const [activeTab, setActiveTab] = useState<ActiveTab>("overview");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -334,8 +334,8 @@ function AdminDashboard({
     ),
   );
 
-  // Products State
-  const [productsList, setProductsList] = useState<Product[]>(getCachedProducts);
+  // Products State (loads both Active and Archived silhouettes for complete administrative oversight)
+  const [productsList, setProductsList] = useState<Product[]>(() => getCachedProducts(true));
 
   // REAL Users State (Starts EMPTY if no user has registered yet)
   const [usersList, setUsersList] = useState<CustomerUser[]>(() => {
@@ -395,8 +395,13 @@ function AdminDashboard({
   const [newColorInputName, setNewColorInputName] = useState("");
   const [newColorInputHex, setNewColorInputHex] = useState("#0a0a0a");
 
+  // Product Active Drop vs Archived status state
+  const [editProductIsActive, setEditProductIsActive] = useState(true);
+  const [newProductIsActive, setNewProductIsActive] = useState(true);
+
   useEffect(() => {
     if (editingProduct) {
+      setEditProductIsActive(editingProduct.isActive !== false);
       setSelectedEditProductSizes(editingProduct.sizes || []);
       setEditProductImages(editingProduct.images || []);
       setEditProductColors(
@@ -413,9 +418,9 @@ function AdminDashboard({
     }
   }, [editingProduct]);
 
-  // Initial and realtime sync with Supabase tables
+  // Initial and realtime sync with Supabase tables (fetches all products including archived for admin)
   useEffect(() => {
-    fetchProducts().then((prods) => {
+    fetchProducts(true).then((prods) => {
       if (prods && prods.length > 0) setProductsList(prods);
     });
     fetchCategories().then((cats) => {
@@ -935,6 +940,7 @@ function AdminDashboard({
     );
     const finalProduct: Product = {
       ...updated,
+      isActive: editProductIsActive,
       sizes:
         allColorSizes.length > 0
           ? allColorSizes
@@ -958,7 +964,7 @@ function AdminDashboard({
 
     if (res.success) {
       toast.success("Saved to Database & Storefront", {
-        description: `${finalProduct.name} specs, colors, sizes & images synced live in Supabase.`,
+        description: `${finalProduct.name} specs, status, colors, sizes & images synced live in Supabase.`,
         id: toastId,
       });
     } else {
@@ -973,10 +979,16 @@ function AdminDashboard({
   const handleToggleProductStatus = async (id: string) => {
     const target = productsList.find((p) => p.id === id);
     if (!target) return;
-    const updated = { ...target, isNew: !target.isNew };
+    const nextActive = target.isActive === false ? true : false;
+    const updated: Product = { ...target, isActive: nextActive };
+    setIsSavingProduct(true);
     const res = await saveProduct(updated);
+    setIsSavingProduct(false);
     setProductsList(res.list);
-    toast.info("Status Toggled", { id: `prod-toggle-${id}` });
+    toast.success(nextActive ? "Silhouette Activated" : "Silhouette Archived", {
+      description: `${target.name} is now ${nextActive ? "live on the storefront" : "hidden from customers"}.`,
+      id: `prod-toggle-${id}`,
+    });
   };
 
   const handleDeleteProduct = async (id: string, name: string) => {
@@ -1037,6 +1049,7 @@ function AdminDashboard({
       care: ["Cold machine wash inside out", "Hang dry in shade"],
       badges: ["Drop 04", "New Arrival"],
       isNew: true,
+      isActive: newProductIsActive,
       isBestSeller: false,
     };
 
@@ -1051,6 +1064,7 @@ function AdminDashboard({
     setProductsList(res.list);
     setIsAddProductOpen(false);
     setNewProductImages([]);
+    setNewProductIsActive(true);
 
     if (res.success) {
       toast.success("New Silhouette Added", {
@@ -1215,7 +1229,7 @@ function AdminDashboard({
   // ----------------------------------------------------
   // USER HANDLERS
   // ----------------------------------------------------
-  const handleToggleUserStatus = (id: string) => {
+  const handleToggleUserStatus = async (id: string) => {
     const targetUser = usersList.find((u) => u.id === id);
     if (!targetUser) return;
 
@@ -1233,9 +1247,20 @@ function AdminDashboard({
       /* ignore */
     }
 
-    toast.info(`User ${targetUser.name} status is now ${newStatus.toUpperCase()}`, {
-      id: `user-status-${id}`,
-    });
+    // Update in Supabase, update auth store, terminate session if active, and broadcast sync across tabs
+    await setUserStatus(id, newStatus);
+
+    if (newStatus === "suspended") {
+      toast.error(`User Suspended: ${targetUser.name}`, {
+        description: "User account suspended. Active sessions are terminated and login is blocked.",
+        id: `user-status-${id}`,
+      });
+    } else {
+      toast.success(`User Activated: ${targetUser.name}`, {
+        description: "Account reactivated. Customer can now sign in normally.",
+        id: `user-status-${id}`,
+      });
+    }
   };
 
   const handleDeleteUser = (id: string, name: string) => {
@@ -1975,16 +2000,18 @@ function AdminDashboard({
                         <td className="py-4 px-4">
                           <button
                             onClick={() => handleToggleProductStatus(product.id)}
-                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-[10px] font-bold uppercase tracking-wider border ${
-                              product.isNew
-                                ? "bg-emerald-950 text-emerald-400 border-emerald-500/40"
-                                : "bg-zinc-900 text-zinc-400 border-white/10"
+                            disabled={isSavingProduct}
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-[10px] font-bold uppercase tracking-wider border transition-colors ${
+                              product.isActive !== false
+                                ? "bg-emerald-950 text-emerald-400 border-emerald-500/40 hover:border-emerald-400"
+                                : "bg-zinc-900 text-zinc-400 border-white/10 hover:border-white/30"
                             }`}
+                            title="Click to toggle active drop / archived status"
                           >
                             <span
-                              className={`h-1.5 w-1.5 rounded-full ${product.isNew ? "bg-emerald-400" : "bg-zinc-500"}`}
+                              className={`h-1.5 w-1.5 rounded-full ${product.isActive !== false ? "bg-emerald-400" : "bg-zinc-500"}`}
                             />
-                            {product.isNew ? "Active Drop" : "Archived"}
+                            {product.isActive !== false ? "Active Drop" : "Archived"}
                           </button>
                         </td>
                         <td className="py-4 px-4 text-right">
@@ -2264,7 +2291,7 @@ function AdminDashboard({
                               className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
                                 user.status === "active"
                                   ? "bg-emerald-950 text-emerald-400 border border-emerald-500/30"
-                                  : "bg-amber-950 text-amber-400 border border-amber-500/30"
+                                  : "bg-red-950 text-red-400 border border-red-500/30"
                               }`}
                             >
                               {user.status}
@@ -2275,8 +2302,12 @@ function AdminDashboard({
                             <div className="inline-flex items-center gap-2">
                               <button
                                 onClick={() => handleToggleUserStatus(user.id)}
-                                className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider rounded border border-white/15 hover:border-white text-zinc-300 hover:text-white"
-                                title="Toggle status"
+                                className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded border transition-colors ${
+                                  user.status === "active"
+                                    ? "border-red-500/30 text-red-400 hover:bg-red-500/10 hover:border-red-500"
+                                    : "border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 hover:border-emerald-500"
+                                }`}
+                                title={user.status === "active" ? "Suspend user account and logout" : "Reactivate user account"}
                               >
                                 {user.status === "active" ? "Suspend" : "Activate"}
                               </button>
@@ -2365,11 +2396,22 @@ function AdminDashboard({
                             </span>
                           </td>
                           <td className="py-4 px-4">
-                            <p className="font-bold text-white">{cartLine.productName}</p>
-                            <p className="text-zinc-400 text-[11px]">
-                              Size: <span className="text-white font-mono">{cartLine.size}</span> ·
-                              Color: <span className="text-white">{cartLine.color}</span>
-                            </p>
+                            <div className="flex items-center gap-3">
+                              {cartLine.productImage && (
+                                <img
+                                  src={cartLine.productImage}
+                                  alt=""
+                                  className="h-10 w-8 object-cover rounded border border-white/10 shrink-0"
+                                />
+                              )}
+                              <div>
+                                <p className="font-bold text-white">{cartLine.productName}</p>
+                                <p className="text-zinc-400 text-[11px]">
+                                  Size: <span className="text-white font-mono">{cartLine.size}</span> ·
+                                  Color: <span className="text-white">{cartLine.color}</span>
+                                </p>
+                              </div>
+                            </div>
                           </td>
                           <td className="py-4 px-4 font-mono font-bold text-white">
                             {cartLine.qty}
@@ -2791,6 +2833,31 @@ function AdminDashboard({
                     className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded focus:border-white focus:outline-none"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
+                  Storefront Availability & Status
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setEditProductIsActive((prev) => !prev)}
+                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded border text-xs transition-colors ${
+                    editProductIsActive
+                      ? "bg-emerald-950/60 border-emerald-500/40 text-emerald-300 hover:border-emerald-400"
+                      : "bg-zinc-900 border-white/15 text-zinc-400 hover:border-white/30"
+                  }`}
+                >
+                  <span className="flex items-center gap-2">
+                    <span className={`h-2.5 w-2.5 rounded-full ${editProductIsActive ? "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]" : "bg-zinc-500"}`} />
+                    <span className="font-bold tracking-wide">
+                      {editProductIsActive ? "Active Drop — Live & Visible to Customers" : "Archived — Hidden from Storefront Catalog"}
+                    </span>
+                  </span>
+                  <span className="text-[10px] uppercase font-mono tracking-wider px-2 py-0.5 rounded bg-black/40 border border-white/10">
+                    {editProductIsActive ? "Click to Archive" : "Click to Activate"}
+                  </span>
+                </button>
               </div>
 
               {/* DYNAMIC SIZES SELECTOR */}
@@ -3273,6 +3340,31 @@ function AdminDashboard({
                   placeholder="e.g. 400 GSM heavyweight luxury fleece"
                   className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded focus:border-white focus:outline-none"
                 />
+              </div>
+
+              <div>
+                <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
+                  Storefront Availability & Status
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setNewProductIsActive((prev) => !prev)}
+                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded border text-xs transition-colors ${
+                    newProductIsActive
+                      ? "bg-emerald-950/60 border-emerald-500/40 text-emerald-300 hover:border-emerald-400"
+                      : "bg-zinc-900 border-white/15 text-zinc-400 hover:border-white/30"
+                  }`}
+                >
+                  <span className="flex items-center gap-2">
+                    <span className={`h-2.5 w-2.5 rounded-full ${newProductIsActive ? "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]" : "bg-zinc-500"}`} />
+                    <span className="font-bold tracking-wide">
+                      {newProductIsActive ? "Active Drop — Live & Visible to Customers" : "Archived — Hidden from Storefront Catalog"}
+                    </span>
+                  </span>
+                  <span className="text-[10px] uppercase font-mono tracking-wider px-2 py-0.5 rounded bg-black/40 border border-white/10">
+                    {newProductIsActive ? "Click to Archive" : "Click to Activate"}
+                  </span>
+                </button>
               </div>
 
               {/* DYNAMIC SIZES SELECTOR */}

@@ -31,6 +31,7 @@ interface CartItemRow {
   size: string;
   color: string;
   quantity: number;
+  image?: string | null;
 }
 
 interface FavoriteRow {
@@ -54,9 +55,40 @@ type ShopState = {
 const ShopContext = createContext<ShopState | null>(null);
 
 export function ShopProvider({ children }: { children: ReactNode }) {
-  const [cart, setCart] = useState<CartLine[]>([]);
-  const [wishlist, setWishlist] = useState<string[]>([]);
   const { currentUser, syncCartToAdmin, syncWishlistToAdmin } = useAuth();
+
+  // Instant local cache initialization so cart and colorway images render without delay
+  const [cart, setCart] = useState<CartLine[]>(() => {
+    if (typeof window === "undefined") return [];
+    try {
+      const savedUser = localStorage.getItem("dripcyclex.auth.user");
+      const userId = savedUser ? JSON.parse(savedUser)?.id : null;
+      const raw = userId
+        ? localStorage.getItem(`dripcyclex.cart.${userId}`) || localStorage.getItem("dripcyclex.cart")
+        : localStorage.getItem("dripcyclex.cart");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {
+      /* ignore */
+    }
+    return [];
+  });
+
+  const [wishlist, setWishlist] = useState<string[]>(() => {
+    if (typeof window === "undefined") return [];
+    try {
+      const raw = localStorage.getItem("dripcyclex.wishlist");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {
+      /* ignore */
+    }
+    return [];
+  });
 
   // Load dedicated user cart & wishlist from Supabase whenever user auth state changes
   useEffect(() => {
@@ -91,22 +123,67 @@ export function ShopProvider({ children }: { children: ReactNode }) {
         if (!isCancelled && cartRows && !cartErr) {
           const rows = cartRows as CartItemRow[];
           const liveProducts = getLiveProducts();
+
+          // Read local cache to preserve exact variant images
+          let localCached: CartLine[] = [];
+          try {
+            const raw =
+              localStorage.getItem(`dripcyclex.cart.${currentUser.id}`) ||
+              localStorage.getItem("dripcyclex.cart");
+            if (raw) localCached = JSON.parse(raw);
+          } catch {
+            /* ignore */
+          }
+
           const mapped: CartLine[] = rows.map((row) => {
             const prod = liveProducts.find(
               (p) => p.id === row.product_id || p.slug === row.product_id,
             );
+
+            // 1. Match specific colorway from product definition
+            const colorMatch = prod?.colors?.find(
+              (c) => c.name.trim().toLowerCase() === (row.color || "").trim().toLowerCase(),
+            );
+
+            // 2. Check if row from Supabase has image stored
+            const rowImage = row.image;
+
+            // 3. Match from local cache
+            const cachedMatch = localCached.find(
+              (l) =>
+                (l.slug === (prod?.slug || row.product_id) || l.id.includes(row.product_id)) &&
+                l.size === row.size &&
+                (l.color || "").trim().toLowerCase() === (row.color || "").trim().toLowerCase(),
+            );
+
+            // Definitive image resolution:
+            // Variant color image -> Stored row image -> Local cache image -> Product cover -> Fallback
+            const definitiveImage =
+              colorMatch?.image ||
+              rowImage ||
+              cachedMatch?.image ||
+              prod?.images?.[0] ||
+              FALLBACK_PRODUCT_IMAGE;
+
             return {
               id: `${prod?.slug || row.product_id}-${row.size}-${row.color}`,
               slug: prod?.slug || row.product_id,
               name: prod?.name || "DRIPCYCLEX Piece",
               price: prod?.price ?? 1799,
-              image: prod?.images?.[0] ?? FALLBACK_PRODUCT_IMAGE,
+              image: definitiveImage,
               size: row.size,
               color: row.color,
               qty: row.quantity,
             };
           });
+
           setCart(mapped);
+          try {
+            localStorage.setItem(`dripcyclex.cart.${currentUser.id}`, JSON.stringify(mapped));
+            localStorage.setItem("dripcyclex.cart", JSON.stringify(mapped));
+          } catch {
+            /* ignore */
+          }
           syncCartToAdmin(mapped);
         }
 
@@ -166,12 +243,35 @@ export function ShopProvider({ children }: { children: ReactNode }) {
       const productId = prod?.id || line.slug;
       const lineId = `${line.slug}-${line.size}-${line.color}`;
 
+      // Resolve definitive image for this colorway variant
+      const colorMatch = prod?.colors?.find(
+        (c) => c.name.trim().toLowerCase() === (line.color || "").trim().toLowerCase(),
+      );
+      const definitiveLineImage =
+        line.image || colorMatch?.image || prod?.images?.[0] || FALLBACK_PRODUCT_IMAGE;
+
+      const preparedLine: CartLine = {
+        ...line,
+        id: lineId,
+        image: definitiveLineImage,
+      };
+
       const existing = cart.find((l) => l.id === lineId);
       const nextCart = existing
-        ? cart.map((l) => (l.id === lineId ? { ...l, qty: l.qty + line.qty } : l))
-        : [...cart, { ...line, id: lineId }];
+        ? cart.map((l) =>
+            l.id === lineId
+              ? { ...l, qty: l.qty + line.qty, image: definitiveLineImage }
+              : l,
+          )
+        : [...cart, preparedLine];
 
       setCart(nextCart);
+      try {
+        localStorage.setItem(`dripcyclex.cart.${currentUser.id}`, JSON.stringify(nextCart));
+        localStorage.setItem("dripcyclex.cart", JSON.stringify(nextCart));
+      } catch {
+        /* ignore */
+      }
       syncCartToAdmin(nextCart);
       broadcastSync("CART_UPDATED", { count: nextCart.length });
 
@@ -179,17 +279,27 @@ export function ShopProvider({ children }: { children: ReactNode }) {
         const newQty = existing ? existing.qty + line.qty : line.qty;
         void (async () => {
           try {
-            await supabase.from("cart_items").upsert(
-              {
-                user_id: currentUser.id,
-                product_id: productId,
-                size: line.size,
-                color: line.color,
-                quantity: newQty,
-                updated_at: new Date().toISOString(),
-              },
-              { onConflict: "user_id,product_id,size,color" },
-            );
+            const payload = {
+              user_id: currentUser.id,
+              product_id: productId,
+              size: line.size,
+              color: line.color,
+              quantity: newQty,
+              image: definitiveLineImage,
+              updated_at: new Date().toISOString(),
+            };
+
+            let { error } = await supabase
+              .from("cart_items")
+              .upsert(payload, { onConflict: "user_id,product_id,size,color" });
+
+            // If Supabase table doesn't have 'image' column yet, retry gracefully without it
+            if (error && error.message && error.message.toLowerCase().includes("image")) {
+              const { image: _ignored, ...payloadWithoutImage } = payload;
+              await supabase
+                .from("cart_items")
+                .upsert(payloadWithoutImage, { onConflict: "user_id,product_id,size,color" });
+            }
           } catch (err) {
             console.warn("Supabase cart_items insert notice:", err);
           }
@@ -208,6 +318,14 @@ export function ShopProvider({ children }: { children: ReactNode }) {
       const nextCart = cart.filter((l) => l.id !== id);
 
       setCart(nextCart);
+      if (currentUser?.id) {
+        try {
+          localStorage.setItem(`dripcyclex.cart.${currentUser.id}`, JSON.stringify(nextCart));
+          localStorage.setItem("dripcyclex.cart", JSON.stringify(nextCart));
+        } catch {
+          /* ignore */
+        }
+      }
       syncCartToAdmin(nextCart);
       broadcastSync("CART_UPDATED", { count: nextCart.length });
 
@@ -245,6 +363,14 @@ export function ShopProvider({ children }: { children: ReactNode }) {
       const nextCart = cart.map((l) => (l.id === id ? { ...l, qty } : l));
 
       setCart(nextCart);
+      if (currentUser?.id) {
+        try {
+          localStorage.setItem(`dripcyclex.cart.${currentUser.id}`, JSON.stringify(nextCart));
+          localStorage.setItem("dripcyclex.cart", JSON.stringify(nextCart));
+        } catch {
+          /* ignore */
+        }
+      }
       syncCartToAdmin(nextCart);
       broadcastSync("CART_UPDATED", { count: nextCart.length });
 
@@ -290,6 +416,11 @@ export function ShopProvider({ children }: { children: ReactNode }) {
 
       const liveProducts = getLiveProducts();
       setWishlist(nextWishlist);
+      try {
+        localStorage.setItem("dripcyclex.wishlist", JSON.stringify(nextWishlist));
+      } catch {
+        /* ignore */
+      }
       syncWishlistToAdmin(nextWishlist, liveProducts);
       broadcastSync("WISHLIST_UPDATED", { count: nextWishlist.length });
 

@@ -20,18 +20,20 @@ export const CATEGORIES_STORAGE_KEY = "dripcyclex.admin.categories";
 export const SIZES_STORAGE_KEY = "dripcyclex.admin.sizes";
 export const PRODUCTS_STORAGE_KEY = "dripcyclex.admin.products";
 
-export function getCachedProducts(): Product[] {
-  if (typeof window === "undefined") return initialProducts;
-  try {
-    const raw = localStorage.getItem(PRODUCTS_STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+export function getCachedProducts(includeArchived: boolean = false): Product[] {
+  let list = initialProducts;
+  if (typeof window !== "undefined") {
+    try {
+      const raw = localStorage.getItem(PRODUCTS_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) list = parsed;
+      }
+    } catch {
+      /* fallback */
     }
-  } catch {
-    /* fallback */
   }
-  return initialProducts;
+  return includeArchived ? list : list.filter((p) => p.isActive !== false);
 }
 
 export function getCachedCategories(): CategoryItem[] {
@@ -288,7 +290,7 @@ export async function syncProductToSupabase(product: Product): Promise<SupabaseS
       badges: Array.isArray(product.badges) ? product.badges : [],
       is_new: product.isNew ?? false,
       is_bestseller: product.isBestSeller ?? false,
-      is_active: true,
+      is_active: product.isActive !== false,
       updated_at: new Date().toISOString(),
     };
 
@@ -340,10 +342,11 @@ export async function saveProduct(
 ): Promise<{ success: boolean; list: Product[]; error?: string | undefined }> {
   const stampedProduct: Product = {
     ...product,
+    isActive: product.isActive !== false,
     updatedAt: new Date().toISOString(),
   };
 
-  const current = getCachedProducts();
+  const current = getCachedProducts(true);
   const exists = current.some((p) => p.id === product.id);
   const next = exists
     ? current.map((p) => (p.id === product.id ? stampedProduct : p))
@@ -374,7 +377,7 @@ export async function saveProduct(
 export async function deleteProduct(
   productId: string,
 ): Promise<{ success: boolean; list: Product[]; error?: string | undefined }> {
-  const current = getCachedProducts();
+  const current = getCachedProducts(true);
   const target = current.find((p) => p.id === productId);
 
   // Permanently delete associated photos from Supabase Storage bucket 'products'
@@ -420,10 +423,11 @@ export async function deleteProduct(
  * broadcasts the change across tabs/components, and persists asynchronously to Supabase.
  */
 export function saveProductLocally(product: Product): Product[] {
-  const current = getCachedProducts();
+  const current = getCachedProducts(true);
   const exists = current.some((p) => p.id === product.id);
   const stampedProduct: Product = {
     ...product,
+    isActive: product.isActive !== false,
     updatedAt: new Date().toISOString(),
   };
 
@@ -450,7 +454,7 @@ export function saveProductLocally(product: Product): Product[] {
  * broadcasts the change across tabs/components, and deletes asynchronously from Supabase.
  */
 export function deleteProductLocally(productId: string): Product[] {
-  const current = getCachedProducts();
+  const current = getCachedProducts(true);
   const next = current.filter((p) => p.id !== productId);
 
   if (typeof window !== "undefined") {
@@ -784,21 +788,23 @@ export async function deleteProductImageFromStorage(publicUrl: string): Promise<
   return deleteProductImagesFromStorage([publicUrl]);
 }
 
-export async function fetchProducts(): Promise<Product[]> {
+export async function fetchProducts(includeArchived: boolean = false): Promise<Product[]> {
   if (!isSupabaseConfigured || typeof window === "undefined") {
-    return getCachedProducts();
+    const cached = getCachedProducts();
+    return includeArchived ? cached : cached.filter((p) => p.isActive !== false);
   }
 
   try {
-    const { data, error } = await supabase
-      .from("products")
-      .select("*")
-      .eq("is_active", true)
-      .order("id", { ascending: true });
+    let query = supabase.from("products").select("*");
+    if (!includeArchived) {
+      query = query.eq("is_active", true);
+    }
+    const { data, error } = await query.order("id", { ascending: true });
 
     if (error) {
       console.warn("Supabase products fetch notice:", error.message);
-      return getCachedProducts();
+      const cached = getCachedProducts();
+      return includeArchived ? cached : cached.filter((p) => p.isActive !== false);
     }
 
     if (data && data.length > 0) {
@@ -842,13 +848,16 @@ export async function fetchProducts(): Promise<Product[]> {
           badges: Array.isArray(row.badges) ? row.badges : [],
           isNew: Boolean(row.is_new),
           isBestSeller: Boolean(row.is_bestseller),
+          isActive: row.is_active !== false,
           updatedAt: row.updated_at,
         };
       });
 
       // Synchronize localStorage cache with the fresh database records directly
       try {
-        localStorage.setItem(PRODUCTS_STORAGE_KEY, JSON.stringify(mapped));
+        if (includeArchived) {
+          localStorage.setItem(PRODUCTS_STORAGE_KEY, JSON.stringify(mapped));
+        }
       } catch {
         /* ignore */
       }
@@ -858,6 +867,7 @@ export async function fetchProducts(): Promise<Product[]> {
     console.warn("Products fetch error fallback:", err);
   }
 
-  return getCachedProducts();
+  const cached = getCachedProducts();
+  return includeArchived ? cached : cached.filter((p) => p.isActive !== false);
 }
 

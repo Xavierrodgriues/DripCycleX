@@ -54,6 +54,7 @@ export type Product = {
   badges?: string[] | undefined;
   isNew?: boolean | undefined;
   isBestSeller?: boolean | undefined;
+  isActive?: boolean | undefined;
   updatedAt?: string | undefined;
 };
 
@@ -223,7 +224,10 @@ export const products: Product[] = [
 export const FALLBACK_PRODUCT_IMAGE =
   "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='900' height='1200' viewBox='0 0 900 1200' fill='%23080808'><rect width='900' height='1200' fill='%23080808'/><rect x='40' y='40' width='820' height='1120' fill='none' stroke='%23222225' stroke-width='2' stroke-dasharray='8 8'/><circle cx='450' cy='560' r='55' fill='%23141416' stroke='%233f3f46' stroke-width='2'/><path d='M425 560 L475 560 M450 535 L450 585' stroke='%23a1a1aa' stroke-width='3' stroke-linecap='round'/><text x='50%25' y='670' dominant-baseline='middle' text-anchor='middle' fill='%23ffffff' font-family='sans-serif' font-weight='900' font-size='22' letter-spacing='6'>DRIPCYCLEX</text><text x='50%25' y='710' dominant-baseline='middle' text-anchor='middle' fill='%2371717a' font-family='monospace' font-weight='600' font-size='13' letter-spacing='3'>NO IMAGERY // UPLOAD IN ADMIN</text></svg>";
 
-export function getLiveProducts(): Product[] {
+/**
+ * Returns all products stored locally (both Active and Archived) for admin usage.
+ */
+export function getAllLiveProducts(): Product[] {
   if (typeof window === "undefined") return products;
   try {
     const raw = localStorage.getItem("dripcyclex.admin.products");
@@ -254,6 +258,13 @@ export function getLiveProducts(): Product[] {
     /* fallback */
   }
   return products;
+}
+
+/**
+ * Returns active storefront products only (excludes archived products).
+ */
+export function getLiveProducts(): Product[] {
+  return getAllLiveProducts().filter((p) => p.isActive !== false);
 }
 
 export const getProduct = (slug: string): Product | undefined => {

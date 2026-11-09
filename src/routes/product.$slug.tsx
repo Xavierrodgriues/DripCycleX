@@ -218,11 +218,17 @@ function ProductDetailsPage() {
   const otherTrinityPieces = allProducts.filter((p) => p.id !== product.id);
 
   const handleAddToCart = () => {
+    const definitiveImage =
+      activeColorObj?.image ||
+      carouselImages[selectedImgIndex] ||
+      carouselImages[0] ||
+      FALLBACK_PRODUCT_IMAGE;
+
     const added = addToCart({
       slug: product.slug,
       name: product.name,
       price: product.price,
-      image: activeColorObj?.image || carouselImages[0] || FALLBACK_PRODUCT_IMAGE,
+      image: definitiveImage,
       size: selectedSize,
       color: selectedColor,
       qty: quantity,

@@ -103,13 +103,14 @@ export function ProductCard({ product, badgeNumber }: { product: Product; badgeN
           type="button"
           aria-label={`Add ${product.name} to bag`}
           onClick={() => {
+            const firstColor = product.colors?.[0];
             const added = addToCart({
               slug: product.slug,
               name: product.name,
               price: product.price,
-              image: product.images[0] ?? "",
+              image: firstColor?.image || product.images?.[0] || FALLBACK_PRODUCT_IMAGE,
               size: product.sizes[Math.floor(product.sizes.length / 2)] ?? product.sizes[0] ?? "",
-              color: product.colors[0]?.name ?? "",
+              color: firstColor?.name ?? "",
               qty: 1,
             });
             if (added) {
