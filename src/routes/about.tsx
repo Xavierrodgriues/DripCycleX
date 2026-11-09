@@ -97,17 +97,17 @@ function AboutPage() {
         </div>
       </section>
 
-      {/* Brand Pillars */}
+      {/* 4 Brand Pillars */}
       <section className="py-20 bg-black border-b border-white/10">
         <div className="mx-auto max-w-[1400px] px-5 sm:px-8 lg:px-12">
           <div className="text-center max-w-xl mx-auto mb-16">
             <span className="eyebrow text-zinc-400 font-bold">Core Foundations</span>
             <h2 className="display-xl mt-2 text-3xl sm:text-5xl text-white">
-              CORE PILLARS OF DRIPCYCLEX
+              FOUR PILLARS OF DRIPCYCLEX
             </h2>
           </div>
 
-          <div className="grid grid-cols-1 gap-8 md:grid-cols-3 max-w-6xl mx-auto justify-center">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8 max-w-6xl mx-auto">
             <Reveal delay={100} className="border border-white/10 bg-zinc-950 p-8 space-y-4">
               <div className="grid h-12 w-12 place-items-center border border-white/20 bg-white/5 text-white">
                 <Compass className="h-6 w-6" />
@@ -140,17 +140,6 @@ function AboutPage() {
                 monochrome screen printing.
               </p>
             </Reveal>
-
-            {/* <Reveal delay={400} className="border border-white/10 bg-zinc-950 p-8 space-y-4">
-              <div className="grid h-12 w-12 place-items-center border border-white/20 bg-white/5 text-white">
-                <CheckCircle className="h-6 w-6" />
-              </div>
-              <h3 className="display-xl text-xl text-white">LIMITED DROPS</h3>
-              <p className="text-xs text-zinc-400 leading-relaxed">
-                Strictly limited piece runs per silhouette to preserve rarity,
-                authenticity, and uncompromising craft standards. Zero restocks once archived.
-              </p>
-            </Reveal> */}
           </div>
         </div>
       </section>

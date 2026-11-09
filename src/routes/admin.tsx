@@ -73,53 +73,36 @@ import {
 } from "@/lib/auth-store";
 import { DRIPCYCLEX_WHATSAPP_PHONE } from "@/lib/whatsapp";
 import { useRealtimeSync, broadcastSync, type SyncPayload } from "@/lib/sync-channel";
+import {
+  fetchAdminCredentials,
+  verifyAdminLogin,
+  updateAdminCredentialsInSupabase,
+  resetAdminCredentialsToDefault,
+} from "@/lib/admin-auth-service";
 
 export const Route = createFileRoute("/admin")({
   component: AdminRouteComponent,
 });
-
-// Default Admin Credentials
-const DEFAULT_ADMIN_CREDENTIALS = {
-  username: "Dripcyclex",
-  password: "admin",
-};
-
-interface StoredCredentials {
-  username: string;
-  password: string;
-}
-
-function getStoredCredentials(): StoredCredentials {
-  try {
-    const raw = localStorage.getItem("dripcyclex.admin.credentials");
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (parsed.username && parsed.password) {
-        return parsed;
-      }
-    }
-  } catch {
-    /* fallback to default */
-  }
-  return DEFAULT_ADMIN_CREDENTIALS;
-}
 
 type ActiveTab = "overview" | "products" | "categories" | "users" | "carts" | "wishlists" | "security";
 
 export function AdminRouteComponent() {
   const [hasMounted, setHasMounted] = useState<boolean>(false);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
-  const [credentials, setCredentials] = useState<StoredCredentials>(DEFAULT_ADMIN_CREDENTIALS);
+  const [adminUsername, setAdminUsername] = useState<string>("Dripcyclex");
 
   useEffect(() => {
     setHasMounted(true);
     try {
       const isAuth = sessionStorage.getItem("dripcyclex.admin.auth") === "true";
       setIsAuthenticated(isAuth);
-      setCredentials(getStoredCredentials());
+      localStorage.removeItem("dripcyclex.admin.credentials");
     } catch {
       // ignore
     }
+    fetchAdminCredentials().then((creds) => {
+      if (creds.username) setAdminUsername(creds.username);
+    });
   }, []);
 
   if (!hasMounted) {
@@ -138,11 +121,11 @@ export function AdminRouteComponent() {
   if (!isAuthenticated) {
     return (
       <AdminLoginPage
-        credentials={credentials}
-        onLoginSuccess={() => {
+        onLoginSuccess={(authedUser) => {
           try {
             sessionStorage.setItem("dripcyclex.admin.auth", "true");
           } catch {}
+          setAdminUsername(authedUser);
           setIsAuthenticated(true);
         }}
       />
@@ -151,13 +134,8 @@ export function AdminRouteComponent() {
 
   return (
     <AdminDashboard
-      credentials={credentials}
-      onUpdateCredentials={(newCreds) => {
-        setCredentials(newCreds);
-        try {
-          localStorage.setItem("dripcyclex.admin.credentials", JSON.stringify(newCreds));
-        } catch {}
-      }}
+      adminUsername={adminUsername}
+      onUsernameChange={setAdminUsername}
       onLogout={() => {
         try {
           sessionStorage.removeItem("dripcyclex.admin.auth");
@@ -175,38 +153,39 @@ export function AdminRouteComponent() {
 // 1. ADMIN AUTHENTICATION LOGIN PAGE
 // ==============================================================================
 function AdminLoginPage({
-  credentials,
   onLoginSuccess,
 }: {
-  credentials: StoredCredentials;
-  onLoginSuccess: () => void;
+  onLoginSuccess: (authenticatedUser: string) => void;
 }) {
   const [loginUser, setLoginUser] = useState("Dripcyclex");
   const [loginPass, setLoginPass] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
-    setTimeout(() => {
+    try {
+      const res = await verifyAdminLogin(loginUser, loginPass);
       setIsLoading(false);
-      const isUsernameValid =
-        loginUser.trim().toLowerCase() === credentials.username.trim().toLowerCase();
-      const isPasswordValid = loginPass === credentials.password;
 
-      if (isUsernameValid && isPasswordValid) {
+      if (res.success) {
         toast.success("Access Granted", {
-          description: `Welcome back, ${credentials.username}. Control access established.`,
+          description: `Welcome back, ${res.username || loginUser}. Control access established.`,
         });
-        onLoginSuccess();
+        onLoginSuccess(res.username || loginUser);
       } else {
         toast.error("Access Denied", {
-          description: "Invalid credentials. Please verify your login name and password.",
+          description: res.error || "Invalid credentials. Please verify your login name and password.",
         });
       }
-    }, 400);
+    } catch (err: any) {
+      setIsLoading(false);
+      toast.error("Authentication Error", {
+        description: err?.message || "Failed to reach authentication service.",
+      });
+    }
   };
 
   return (
@@ -262,7 +241,7 @@ function AdminLoginPage({
                 required
                 value={loginPass}
                 onChange={(e) => setLoginPass(e.target.value)}
-                placeholder="admin"
+                placeholder="••••••••"
                 className="w-full border border-white/15 bg-zinc-950/80 px-4 py-3 text-sm text-white rounded-lg focus:border-white focus:outline-none focus:ring-1 focus:ring-white transition-all pr-10 font-mono"
               />
               <button
@@ -273,17 +252,6 @@ function AdminLoginPage({
               >
                 {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
-            </div>
-          </div>
-
-          <div className="border border-white/10 bg-white/5 p-3 rounded-lg text-xs space-y-1">
-            <div className="flex items-center justify-between text-zinc-400">
-              <span>Preset Login:</span>
-              <span className="font-mono font-bold text-white">Dripcyclex</span>
-            </div>
-            <div className="flex items-center justify-between text-zinc-400">
-              <span>Preset Password:</span>
-              <span className="font-mono font-bold text-white">admin</span>
             </div>
           </div>
 
@@ -319,12 +287,12 @@ function AdminLoginPage({
 // 2. MAIN ADMIN DASHBOARD & MANAGEMENT (100% REAL DATA, NO MOCK USERS/CARTS)
 // ==============================================================================
 function AdminDashboard({
-  credentials,
-  onUpdateCredentials,
+  adminUsername,
+  onUsernameChange,
   onLogout,
 }: {
-  credentials: StoredCredentials;
-  onUpdateCredentials: (newCreds: StoredCredentials) => void;
+  adminUsername: string;
+  onUsernameChange: (name: string) => void;
   onLogout: () => void;
 }) {
   const { cart, wishlist, removeLine, toggleWishlist, reloadFromStorage } = useShop();
@@ -1351,9 +1319,9 @@ function AdminDashboard({
   };
 
   // ----------------------------------------------------
-  // CREDENTIALS UPDATE HANDLER
+  // CREDENTIALS UPDATE HANDLER (DIRECT SUPABASE DATABASE PERSISTENCE)
   // ----------------------------------------------------
-  const handleUpdateAdminCredentials = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleUpdateAdminCredentials = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     const currentPass = fd.get("currentPassword") as string;
@@ -1361,10 +1329,8 @@ function AdminDashboard({
     const newPassword = fd.get("newPassword") as string;
     const confirmPassword = fd.get("confirmPassword") as string;
 
-    if (currentPass !== credentials.password) {
-      toast.error("Incorrect Current Password", {
-        description: "Please enter your existing password to verify authorization.",
-      });
+    if (!currentPass) {
+      toast.error("Please enter your existing password to verify authorization.");
       return;
     }
 
@@ -1387,20 +1353,39 @@ function AdminDashboard({
       return;
     }
 
-    const updated = { username: newUsername, password: newPassword };
-    onUpdateCredentials(updated);
-    setIsCredentialsModalOpen(false);
-    toast.success("Credentials Updated", {
-      description: `New login: "${newUsername}". Future sign-ins will require these new keys.`,
-    });
+    const toastId = toast.loading("Updating credentials in Supabase database...");
+    const res = await updateAdminCredentialsInSupabase(currentPass, newUsername, newPassword);
+    if (res.success) {
+      onUsernameChange(newUsername);
+      setIsCredentialsModalOpen(false);
+      toast.success("Credentials Updated in Database", {
+        description: `New login: "${newUsername}". Synced directly to Supabase.`,
+        id: toastId,
+      });
+    } else {
+      toast.error("Update Failed", {
+        description: res.error || "Could not update credentials in database.",
+        id: toastId,
+      });
+    }
   };
 
-  const handleResetToDefaultCredentials = () => {
-    if (confirm("Reset admin credentials back to default (Dripcyclex / admin)?")) {
-      onUpdateCredentials(DEFAULT_ADMIN_CREDENTIALS);
-      toast.info("Reset to Default", {
-        description: "Credentials are now Dripcyclex / admin",
-      });
+  const handleResetToDefaultCredentials = async () => {
+    if (confirm("Reset admin credentials back to default (Dripcyclex / admin) in Supabase database?")) {
+      const toastId = toast.loading("Resetting credentials in Supabase...");
+      const res = await resetAdminCredentialsToDefault();
+      if (res.success) {
+        onUsernameChange("Dripcyclex");
+        toast.info("Reset to Default", {
+          description: "Credentials restored to default (Dripcyclex / admin) in Supabase.",
+          id: toastId,
+        });
+      } else {
+        toast.error("Reset Failed", {
+          description: res.error || "Could not reset credentials.",
+          id: toastId,
+        });
+      }
     }
   };
 
@@ -1451,7 +1436,7 @@ function AdminDashboard({
               title="Click to update admin credentials"
             >
               <KeyRound className="h-3.5 w-3.5 text-red-400" />
-              <span>{credentials.username}</span>
+              <span>{adminUsername}</span>
             </button>
 
             <button
@@ -2449,7 +2434,7 @@ function AdminDashboard({
                       Active Login Name
                     </span>
                     <span className="text-base font-mono font-bold text-white mt-1 block">
-                      {credentials.username}
+                      {adminUsername}
                     </span>
                   </div>
                   <div>
@@ -2540,7 +2525,7 @@ function AdminDashboard({
                       name="newUsername"
                       type="text"
                       required
-                      defaultValue={credentials.username}
+                      defaultValue={adminUsername}
                       className="w-full border border-white/15 bg-zinc-950 px-3.5 py-2.5 text-white rounded font-mono focus:border-white focus:outline-none"
                     />
                     <p className="mt-1 text-[11px] text-zinc-500">
@@ -3916,7 +3901,7 @@ function AdminDashboard({
                     name="newUsername"
                     type="text"
                     required
-                    defaultValue={credentials.username}
+                    defaultValue={adminUsername}
                     className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded font-mono focus:border-white focus:outline-none"
                   />
                 </div>

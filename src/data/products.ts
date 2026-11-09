@@ -174,7 +174,7 @@ export const products: Product[] = [
     colors: [
       { ...BLACK, sizes: ["S", "M", "L", "XL", "XXL"] },
       { ...CHARCOAL, sizes: ["M", "L", "XL", "XXL"] },
-      { ...SIGNAL_RED, sizes: ["S", "M", "L"] },
+      { ...WHITE, sizes: ["S", "M", "L", "XL"] },
     ],
     sizes: ["S", "M", "L", "XL", "XXL"],
     description:

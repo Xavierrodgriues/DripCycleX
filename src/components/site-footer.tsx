@@ -50,7 +50,7 @@ export function SiteFooter() {
                 <Instagram className="h-4 w-4" />
               </a>
               <a
-                href="https://www.instagram.com/dripcyclex/"
+                href="https://www.facebook.com/share/19esVa7ybj/"
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="Facebook @dripcyclex"

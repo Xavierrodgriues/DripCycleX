@@ -46,7 +46,12 @@ function ProductDetailsPage() {
       (payload: SyncPayload) => {
         if (payload.type === "PRODUCTS_UPDATED" || !payload.type) {
           const fresh = getProduct(slug);
-          if (fresh) setProduct(fresh);
+          if (fresh) {
+            setProduct(fresh);
+            setSelectedColor((prev) =>
+              fresh.colors.some((c) => c.name === prev) ? prev : fresh.colors[0]?.name ?? "",
+            );
+          }
           setAllProducts(getCachedProducts());
         }
       },
@@ -60,7 +65,12 @@ function ProductDetailsPage() {
       if (prods && prods.length > 0) {
         setAllProducts(prods);
         const match = prods.find((p) => p.slug === slug || p.id === slug);
-        if (match) setProduct(match);
+        if (match) {
+          setProduct(match);
+          setSelectedColor((prev) =>
+            match.colors.some((c) => c.name === prev) ? prev : match.colors[0]?.name ?? "",
+          );
+        }
       }
     });
   }, [slug]);
@@ -88,6 +98,16 @@ function ProductDetailsPage() {
     }
     return product?.sizes || [];
   }, [activeColorObj, product]);
+
+  // Ensure selectedSize is valid for current colorway
+  useEffect(() => {
+    if (availableSizesForColor.length > 0 && !availableSizesForColor.includes(selectedSize)) {
+      const firstValid = availableSizesForColor[0];
+      if (firstValid) {
+        setSelectedSize(firstValid);
+      }
+    }
+  }, [availableSizesForColor, selectedSize]);
 
   // Active images list for carousel: includes color-specific image if available
   const carouselImages: string[] = useMemo(() => {
@@ -159,9 +179,10 @@ function ProductDetailsPage() {
 
   const wished = wishlist.includes(product.slug);
 
-  const discountPercent = product.compareAtPrice
-    ? Math.round(((product.compareAtPrice - product.price) / product.compareAtPrice) * 100)
-    : null;
+  const discountPercent =
+    product.compareAtPrice && product.compareAtPrice > product.price
+      ? Math.round(((product.compareAtPrice - product.price) / product.compareAtPrice) * 100)
+      : null;
 
   // The other products in the catalog
   const otherTrinityPieces = allProducts.filter((p) => p.id !== product.id);
