@@ -55,6 +55,8 @@ import {
   deleteSizeFromSupabase,
   syncProductToSupabase,
   deleteProductFromSupabase,
+  saveProduct,
+  deleteProduct,
   saveProductLocally,
   deleteProductLocally,
   uploadProductImage,
@@ -853,7 +855,9 @@ function AdminDashboard({
     }
   };
 
-  const handleUpdateProduct = (updated: Product) => {
+  const [isSavingProduct, setIsSavingProduct] = useState(false);
+
+  const handleUpdateProduct = async (updated: Product) => {
     const allColorSizes = Array.from(
       new Set(editProductColors.flatMap((c) => c.sizes || [])),
     );
@@ -868,36 +872,65 @@ function AdminDashboard({
       colors: editProductColors,
       images: editProductImages,
     };
-    const nextList = saveProductLocally(finalProduct);
-    setProductsList(nextList);
-    setEditingProduct(null);
-    toast.success("Silhouette Updated", {
-      description: `${finalProduct.name} specs, colors, sizes & images saved across catalog.`,
-      id: `prod-update-${finalProduct.id}`,
+
+    setIsSavingProduct(true);
+    const toastId = toast.loading(`Syncing ${finalProduct.name} to Supabase...`, {
+      id: `prod-sync-${finalProduct.id}`,
     });
-  };
 
-  const handleToggleProductStatus = (id: string) => {
-    const target = productsList.find((p) => p.id === id);
-    if (!target) return;
-    const updated = { ...target, isNew: !target.isNew };
-    const nextList = saveProductLocally(updated);
-    setProductsList(nextList);
-    toast.info("Status Toggled", { id: `prod-toggle-${id}` });
-  };
+    const res = await saveProduct(finalProduct);
+    setIsSavingProduct(false);
 
-  const handleDeleteProduct = (id: string, name: string) => {
-    if (confirm(`Are you sure you want to delete ${name}?`)) {
-      const nextList = deleteProductLocally(id);
-      setProductsList(nextList);
-      toast.error("Product Removed", {
-        description: `${name} has been removed from active drops.`,
-        id: `prod-delete-${id}`,
+    setProductsList(res.list);
+    setEditingProduct(null);
+
+    if (res.success) {
+      toast.success("Saved to Database & Storefront", {
+        description: `${finalProduct.name} specs, colors, sizes & images synced live in Supabase.`,
+        id: toastId,
+      });
+    } else {
+      toast.error("Database Sync Notice", {
+        description: `Local update saved, but Supabase returned: ${res.error}. Please ensure SQL migration is applied in Supabase.`,
+        duration: 9000,
+        id: toastId,
       });
     }
   };
 
-  const handleCreateProduct = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleToggleProductStatus = async (id: string) => {
+    const target = productsList.find((p) => p.id === id);
+    if (!target) return;
+    const updated = { ...target, isNew: !target.isNew };
+    const res = await saveProduct(updated);
+    setProductsList(res.list);
+    toast.info("Status Toggled", { id: `prod-toggle-${id}` });
+  };
+
+  const handleDeleteProduct = async (id: string, name: string) => {
+    if (confirm(`Are you sure you want to delete ${name} from database and storefront?`)) {
+      const toastId = toast.loading(`Deleting ${name} from Supabase...`, {
+        id: `prod-delete-${id}`,
+      });
+      const res = await deleteProduct(id);
+      setProductsList(res.list);
+
+      if (res.success) {
+        toast.success("Product Deleted", {
+          description: `${name} has been removed from Supabase and active drops.`,
+          id: toastId,
+        });
+      } else {
+        toast.error("Database Delete Notice", {
+          description: `Removed locally, but Supabase returned: ${res.error}`,
+          duration: 9000,
+          id: toastId,
+        });
+      }
+    }
+  };
+
+  const handleCreateProduct = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     const chosenCategory =
@@ -909,13 +942,17 @@ function AdminDashboard({
       new Set(newProductColors.flatMap((c) => c.sizes || [])),
     );
 
+    const priceVal = Number(formData.get("price")) || 2499;
+    const rawCompare = Number(formData.get("compareAtPrice"));
+    const comparePriceVal = rawCompare >= priceVal ? rawCompare : undefined;
+
     const newProd: Product = {
       id: `dcx-00${productsList.length + 1}`,
       slug: (formData.get("slug") as string) || `drop-0${productsList.length + 1}`,
       name: (formData.get("name") as string) || "DRIPCYCLEX Architectural Piece",
       category: chosenCategory,
-      price: Number(formData.get("price")) || 2499,
-      compareAtPrice: Number(formData.get("compareAtPrice")) || 3199,
+      price: priceVal,
+      compareAtPrice: comparePriceVal,
       rating: 5.0,
       reviews: 1,
       images: newProductImages.length > 0 ? newProductImages : [],
@@ -930,14 +967,31 @@ function AdminDashboard({
       isNew: true,
       isBestSeller: false,
     };
-    const nextList = saveProductLocally(newProd);
-    setProductsList(nextList);
-    setIsAddProductOpen(false);
-    setNewProductImages([]);
-    toast.success("New Silhouette Added", {
-      description: `${newProd.name} is now saved in catalog.`,
+
+    setIsSavingProduct(true);
+    const toastId = toast.loading(`Publishing ${newProd.name} to Supabase...`, {
       id: `prod-create-${newProd.id}`,
     });
+
+    const res = await saveProduct(newProd);
+    setIsSavingProduct(false);
+
+    setProductsList(res.list);
+    setIsAddProductOpen(false);
+    setNewProductImages([]);
+
+    if (res.success) {
+      toast.success("New Silhouette Added", {
+        description: `${newProd.name} is now saved in Supabase database & storefront.`,
+        id: toastId,
+      });
+    } else {
+      toast.error("Database Save Notice", {
+        description: `Local update saved, but Supabase returned: ${res.error}`,
+        duration: 9000,
+        id: toastId,
+      });
+    }
   };
 
   // ----------------------------------------------------
@@ -2547,15 +2601,16 @@ function AdminDashboard({
       {/* EDIT PRODUCT MODAL */}
       {/* ======================================================== */}
       {editingProduct && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="w-full max-w-lg border border-white/20 bg-zinc-950 p-6 rounded shadow-2xl text-white my-8">
-            <div className="flex items-center justify-between border-b border-white/10 pb-4">
-              <h3 className="text-lg font-bold uppercase tracking-wider">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-3 sm:p-6 overflow-y-auto">
+          <div className="w-full max-w-2xl max-h-[90vh] flex flex-col border border-white/20 bg-zinc-950 p-6 rounded-lg shadow-2xl text-white my-auto">
+            <div className="flex items-center justify-between border-b border-white/10 pb-4 shrink-0">
+              <h3 className="text-lg font-bold uppercase tracking-wider truncate mr-4">
                 Edit Silhouette: {editingProduct.name}
               </h3>
               <button
+                type="button"
                 onClick={() => setEditingProduct(null)}
-                className="text-zinc-400 hover:text-white"
+                className="text-zinc-400 hover:text-white shrink-0 p-1 rounded hover:bg-white/10"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -2581,9 +2636,10 @@ function AdminDashboard({
                 }
                 handleUpdateProduct(updated);
               }}
-              className="mt-4 space-y-4 text-xs"
+              className="flex-1 flex flex-col min-h-0 mt-4 text-xs"
             >
-              <div>
+              <div className="flex-1 overflow-y-auto space-y-4 pr-2">
+                <div>
                 <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
                   Product Name
                 </label>
@@ -2962,19 +3018,20 @@ function AdminDashboard({
                 </div>
               </div>
 
-              <div>
-                <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
-                  Description
-                </label>
-                <textarea
-                  name="description"
-                  rows={3}
-                  defaultValue={editingProduct.description}
-                  className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded focus:border-white focus:outline-none"
-                />
+                <div>
+                  <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
+                    Description
+                  </label>
+                  <textarea
+                    name="description"
+                    rows={3}
+                    defaultValue={editingProduct.description}
+                    className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded focus:border-white focus:outline-none"
+                  />
+                </div>
               </div>
 
-              <div className="flex justify-end gap-3 pt-3 border-t border-white/10">
+              <div className="shrink-0 flex justify-end gap-3 pt-3 mt-4 border-t border-white/10">
                 <button
                   type="button"
                   onClick={() => setEditingProduct(null)}
@@ -2998,20 +3055,22 @@ function AdminDashboard({
       {/* ADD PRODUCT MODAL */}
       {/* ======================================================== */}
       {isAddProductOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="w-full max-w-lg border border-white/20 bg-zinc-950 p-6 rounded shadow-2xl text-white my-8">
-            <div className="flex items-center justify-between border-b border-white/10 pb-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-3 sm:p-6 overflow-y-auto">
+          <div className="w-full max-w-2xl max-h-[90vh] flex flex-col border border-white/20 bg-zinc-950 p-6 rounded-lg shadow-2xl text-white my-auto">
+            <div className="flex items-center justify-between border-b border-white/10 pb-4 shrink-0">
               <h3 className="text-lg font-bold uppercase tracking-wider">Create New Silhouette</h3>
               <button
+                type="button"
                 onClick={() => setIsAddProductOpen(false)}
-                className="text-zinc-400 hover:text-white"
+                className="text-zinc-400 hover:text-white shrink-0 p-1 rounded hover:bg-white/10"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
-            <form onSubmit={handleCreateProduct} className="mt-4 space-y-4 text-xs">
-              <div>
+            <form onSubmit={handleCreateProduct} className="flex-1 flex flex-col min-h-0 mt-4 text-xs">
+              <div className="flex-1 overflow-y-auto space-y-4 pr-2">
+                <div>
                 <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
                   Silhouette Name
                 </label>
@@ -3404,19 +3463,20 @@ function AdminDashboard({
                 </div>
               </div>
 
-              <div>
-                <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
-                  Description
-                </label>
-                <textarea
-                  name="description"
-                  rows={3}
-                  placeholder="Architectural drop specifications and styling details..."
-                  className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded focus:border-white focus:outline-none"
-                />
+                <div>
+                  <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
+                    Description
+                  </label>
+                  <textarea
+                    name="description"
+                    rows={3}
+                    placeholder="Architectural drop specifications and styling details..."
+                    className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded focus:border-white focus:outline-none"
+                  />
+                </div>
               </div>
 
-              <div className="flex justify-end gap-3 pt-3 border-t border-white/10">
+              <div className="shrink-0 flex justify-end gap-3 pt-3 mt-4 border-t border-white/10">
                 <button
                   type="button"
                   onClick={() => setIsAddProductOpen(false)}
@@ -3440,71 +3500,74 @@ function AdminDashboard({
       {/* ADD CATEGORY MODAL */}
       {/* ======================================================== */}
       {isAddCategoryOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="w-full max-w-md border border-white/20 bg-zinc-950 p-6 rounded shadow-2xl text-white my-8">
-            <div className="flex items-center justify-between border-b border-white/10 pb-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-3 sm:p-6 overflow-y-auto">
+          <div className="w-full max-w-md max-h-[90vh] flex flex-col border border-white/20 bg-zinc-950 p-6 rounded-lg shadow-2xl text-white my-auto">
+            <div className="flex items-center justify-between border-b border-white/10 pb-4 shrink-0">
               <h3 className="text-lg font-bold uppercase tracking-wider flex items-center gap-2">
                 <Layers className="h-5 w-5 text-purple-400" />
                 Add Category
               </h3>
               <button
+                type="button"
                 onClick={() => setIsAddCategoryOpen(false)}
-                className="text-zinc-400 hover:text-white"
+                className="text-zinc-400 hover:text-white shrink-0 p-1 rounded hover:bg-white/10"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
-            <form onSubmit={handleCreateCategory} className="mt-4 space-y-4 text-xs">
-              <div>
-                <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
-                  Category Name
-                </label>
-                <input
-                  name="name"
-                  required
-                  placeholder="e.g. Knitwear, Cargo Pants, Outerwear"
-                  className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded focus:border-white focus:outline-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
+            <form onSubmit={handleCreateCategory} className="flex-1 flex flex-col min-h-0 mt-4 text-xs">
+              <div className="flex-1 overflow-y-auto space-y-4 pr-1">
                 <div>
                   <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
-                    Slug (Auto-generated if empty)
+                    Category Name
                   </label>
                   <input
-                    name="slug"
-                    placeholder="e.g. knitwear"
+                    name="name"
+                    required
+                    placeholder="e.g. Knitwear, Cargo Pants, Outerwear"
                     className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded focus:border-white focus:outline-none"
                   />
                 </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
+                      Slug (Auto-generated if empty)
+                    </label>
+                    <input
+                      name="slug"
+                      placeholder="e.g. knitwear"
+                      className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded focus:border-white focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
+                      Display Order
+                    </label>
+                    <input
+                      name="display_order"
+                      type="number"
+                      defaultValue={categoriesList.length + 1}
+                      className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded focus:border-white focus:outline-none"
+                    />
+                  </div>
+                </div>
+
                 <div>
                   <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
-                    Display Order
+                    Description
                   </label>
-                  <input
-                    name="display_order"
-                    type="number"
-                    defaultValue={categoriesList.length + 1}
+                  <textarea
+                    name="description"
+                    rows={2}
+                    placeholder="Brief description of silhouettes in this category..."
                     className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded focus:border-white focus:outline-none"
                   />
                 </div>
               </div>
 
-              <div>
-                <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
-                  Description
-                </label>
-                <textarea
-                  name="description"
-                  rows={2}
-                  placeholder="Brief description of silhouettes in this category..."
-                  className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded focus:border-white focus:outline-none"
-                />
-              </div>
-
-              <div className="flex justify-end gap-3 pt-3 border-t border-white/10">
+              <div className="shrink-0 flex justify-end gap-3 pt-3 mt-4 border-t border-white/10">
                 <button
                   type="button"
                   onClick={() => setIsAddCategoryOpen(false)}
@@ -3528,70 +3591,73 @@ function AdminDashboard({
       {/* EDIT CATEGORY MODAL */}
       {/* ======================================================== */}
       {editingCategory && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="w-full max-w-md border border-white/20 bg-zinc-950 p-6 rounded shadow-2xl text-white my-8">
-            <div className="flex items-center justify-between border-b border-white/10 pb-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-3 sm:p-6 overflow-y-auto">
+          <div className="w-full max-w-md max-h-[90vh] flex flex-col border border-white/20 bg-zinc-950 p-6 rounded-lg shadow-2xl text-white my-auto">
+            <div className="flex items-center justify-between border-b border-white/10 pb-4 shrink-0">
               <h3 className="text-lg font-bold uppercase tracking-wider">
                 Edit Category: {editingCategory.name}
               </h3>
               <button
+                type="button"
                 onClick={() => setEditingCategory(null)}
-                className="text-zinc-400 hover:text-white"
+                className="text-zinc-400 hover:text-white shrink-0 p-1 rounded hover:bg-white/10"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
-            <form onSubmit={handleUpdateCategory} className="mt-4 space-y-4 text-xs">
-              <div>
-                <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
-                  Category Name
-                </label>
-                <input
-                  name="name"
-                  defaultValue={editingCategory.name}
-                  required
-                  className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded focus:border-white focus:outline-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
+            <form onSubmit={handleUpdateCategory} className="flex-1 flex flex-col min-h-0 mt-4 text-xs">
+              <div className="flex-1 overflow-y-auto space-y-4 pr-1">
                 <div>
                   <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
-                    Slug (Immutable)
+                    Category Name
                   </label>
                   <input
-                    disabled
-                    value={editingCategory.slug}
-                    className="w-full border border-white/10 bg-zinc-900 px-3 py-2 text-zinc-400 rounded cursor-not-allowed"
+                    name="name"
+                    defaultValue={editingCategory.name}
+                    required
+                    className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded focus:border-white focus:outline-none"
                   />
                 </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
+                      Slug (Immutable)
+                    </label>
+                    <input
+                      disabled
+                      value={editingCategory.slug}
+                      className="w-full border border-white/10 bg-zinc-900 px-3 py-2 text-zinc-400 rounded cursor-not-allowed"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
+                      Display Order
+                    </label>
+                    <input
+                      name="display_order"
+                      type="number"
+                      defaultValue={editingCategory.display_order ?? 1}
+                      className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded focus:border-white focus:outline-none"
+                    />
+                  </div>
+                </div>
+
                 <div>
                   <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
-                    Display Order
+                    Description
                   </label>
-                  <input
-                    name="display_order"
-                    type="number"
-                    defaultValue={editingCategory.display_order ?? 1}
+                  <textarea
+                    name="description"
+                    rows={2}
+                    defaultValue={editingCategory.description || ""}
                     className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded focus:border-white focus:outline-none"
                   />
                 </div>
               </div>
 
-              <div>
-                <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
-                  Description
-                </label>
-                <textarea
-                  name="description"
-                  rows={2}
-                  defaultValue={editingCategory.description || ""}
-                  className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded focus:border-white focus:outline-none"
-                />
-              </div>
-
-              <div className="flex justify-end gap-3 pt-3 border-t border-white/10">
+              <div className="shrink-0 flex justify-end gap-3 pt-3 mt-4 border-t border-white/10">
                 <button
                   type="button"
                   onClick={() => setEditingCategory(null)}
@@ -3615,58 +3681,61 @@ function AdminDashboard({
       {/* ADD SIZE MODAL */}
       {/* ======================================================== */}
       {isAddSizeOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="w-full max-w-sm border border-white/20 bg-zinc-950 p-6 rounded shadow-2xl text-white my-8">
-            <div className="flex items-center justify-between border-b border-white/10 pb-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-3 sm:p-6 overflow-y-auto">
+          <div className="w-full max-w-sm max-h-[90vh] flex flex-col border border-white/20 bg-zinc-950 p-6 rounded-lg shadow-2xl text-white my-auto">
+            <div className="flex items-center justify-between border-b border-white/10 pb-4 shrink-0">
               <h3 className="text-lg font-bold uppercase tracking-wider flex items-center gap-2">
                 <Check className="h-5 w-5 text-emerald-400" />
                 Add Size Standard
               </h3>
               <button
+                type="button"
                 onClick={() => setIsAddSizeOpen(false)}
-                className="text-zinc-400 hover:text-white"
+                className="text-zinc-400 hover:text-white shrink-0 p-1 rounded hover:bg-white/10"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
-            <form onSubmit={handleCreateSize} className="mt-4 space-y-4 text-xs">
-              <div>
-                <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
-                  Size Code (e.g. XS, 3XL, 4XL, OS)
-                </label>
-                <input
-                  name="code"
-                  required
-                  placeholder="3XL"
-                  className="w-full border border-white/15 bg-black px-3 py-2 text-white font-mono font-bold uppercase rounded focus:border-white focus:outline-none"
-                />
+            <form onSubmit={handleCreateSize} className="flex-1 flex flex-col min-h-0 mt-4 text-xs">
+              <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+                <div>
+                  <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
+                    Size Code (e.g. XS, 3XL, 4XL, OS)
+                  </label>
+                  <input
+                    name="code"
+                    required
+                    placeholder="3XL"
+                    className="w-full border border-white/15 bg-black px-3 py-2 text-white font-mono font-bold uppercase rounded focus:border-white focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
+                    Full Name
+                  </label>
+                  <input
+                    name="name"
+                    placeholder="Triple Extra Large"
+                    className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded focus:border-white focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
+                    Display Order
+                  </label>
+                  <input
+                    name="display_order"
+                    type="number"
+                    defaultValue={sizesList.length + 1}
+                    className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded focus:border-white focus:outline-none"
+                  />
+                </div>
               </div>
 
-              <div>
-                <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
-                  Full Name
-                </label>
-                <input
-                  name="name"
-                  placeholder="Triple Extra Large"
-                  className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded focus:border-white focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
-                  Display Order
-                </label>
-                <input
-                  name="display_order"
-                  type="number"
-                  defaultValue={sizesList.length + 1}
-                  className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded focus:border-white focus:outline-none"
-                />
-              </div>
-
-              <div className="flex justify-end gap-3 pt-3 border-t border-white/10">
+              <div className="shrink-0 flex justify-end gap-3 pt-3 mt-4 border-t border-white/10">
                 <button
                   type="button"
                   onClick={() => setIsAddSizeOpen(false)}
@@ -3690,96 +3759,99 @@ function AdminDashboard({
       {/* ADD USER MODAL */}
       {/* ======================================================== */}
       {isAddUserOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="w-full max-w-md border border-white/20 bg-zinc-950 p-6 rounded shadow-2xl text-white">
-            <div className="flex items-center justify-between border-b border-white/10 pb-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-3 sm:p-6 overflow-y-auto">
+          <div className="w-full max-w-md max-h-[90vh] flex flex-col border border-white/20 bg-zinc-950 p-6 rounded-lg shadow-2xl text-white my-auto">
+            <div className="flex items-center justify-between border-b border-white/10 pb-4 shrink-0">
               <h3 className="text-lg font-bold uppercase tracking-wider">
                 Register Customer Client
               </h3>
               <button
+                type="button"
                 onClick={() => setIsAddUserOpen(false)}
-                className="text-zinc-400 hover:text-white"
+                className="text-zinc-400 hover:text-white shrink-0 p-1 rounded hover:bg-white/10"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
-            <form onSubmit={handleAddUser} className="mt-4 space-y-4 text-xs">
-              <div>
-                <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
-                  Full Name *
-                </label>
-                <input
-                  name="name"
-                  required
-                  placeholder="e.g. Liam Cross"
-                  className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded focus:border-white focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
-                  Email Address *
-                </label>
-                <input
-                  name="email"
-                  type="email"
-                  required
-                  placeholder="liam@gmail.com"
-                  className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded focus:border-white focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
-                  Contact Phone *
-                </label>
-                <input
-                  name="phone"
-                  required
-                  placeholder="+91 98765 43210"
-                  className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded focus:border-white focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
-                  Street Address *
-                </label>
-                <input
-                  name="address"
-                  required
-                  placeholder="Flat / Building, Street"
-                  className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded focus:border-white focus:outline-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
+            <form onSubmit={handleAddUser} className="flex-1 flex flex-col min-h-0 mt-4 text-xs">
+              <div className="flex-1 overflow-y-auto space-y-4 pr-1">
                 <div>
                   <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
-                    City *
+                    Full Name *
                   </label>
                   <input
-                    name="city"
+                    name="name"
                     required
-                    placeholder="Mumbai"
+                    placeholder="e.g. Liam Cross"
                     className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded focus:border-white focus:outline-none"
                   />
                 </div>
+
                 <div>
                   <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
-                    Zip Code *
+                    Email Address *
                   </label>
                   <input
-                    name="zipCode"
+                    name="email"
+                    type="email"
                     required
-                    placeholder="400050"
+                    placeholder="liam@gmail.com"
                     className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded focus:border-white focus:outline-none"
                   />
                 </div>
+
+                <div>
+                  <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
+                    Contact Phone *
+                  </label>
+                  <input
+                    name="phone"
+                    required
+                    placeholder="+91 98765 43210"
+                    className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded focus:border-white focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
+                    Street Address *
+                  </label>
+                  <input
+                    name="address"
+                    required
+                    placeholder="Flat / Building, Street"
+                    className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded focus:border-white focus:outline-none"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
+                      City *
+                    </label>
+                    <input
+                      name="city"
+                      required
+                      placeholder="Mumbai"
+                      className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded focus:border-white focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
+                      Zip Code *
+                    </label>
+                    <input
+                      name="zipCode"
+                      required
+                      placeholder="400050"
+                      className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded focus:border-white focus:outline-none"
+                    />
+                  </div>
+                </div>
               </div>
 
-              <div className="flex justify-end gap-3 pt-3 border-t border-white/10">
+              <div className="shrink-0 flex justify-end gap-3 pt-3 mt-4 border-t border-white/10">
                 <button
                   type="button"
                   onClick={() => setIsAddUserOpen(false)}
@@ -3803,9 +3875,9 @@ function AdminDashboard({
       {/* QUICK CREDENTIALS MODAL */}
       {/* ======================================================== */}
       {isCredentialsModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="w-full max-w-md border border-white/20 bg-zinc-950 p-6 rounded shadow-2xl text-white">
-            <div className="flex items-center justify-between border-b border-white/10 pb-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-3 sm:p-6 overflow-y-auto">
+          <div className="w-full max-w-md max-h-[90vh] flex flex-col border border-white/20 bg-zinc-950 p-6 rounded-lg shadow-2xl text-white my-auto">
+            <div className="flex items-center justify-between border-b border-white/10 pb-4 shrink-0">
               <div className="flex items-center gap-2">
                 <KeyRound className="h-5 w-5 text-red-500" />
                 <h3 className="text-base font-bold uppercase tracking-wider">
@@ -3813,67 +3885,70 @@ function AdminDashboard({
                 </h3>
               </div>
               <button
+                type="button"
                 onClick={() => setIsCredentialsModalOpen(false)}
-                className="text-zinc-400 hover:text-white"
+                className="text-zinc-400 hover:text-white shrink-0 p-1 rounded hover:bg-white/10"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
-            <form onSubmit={handleUpdateAdminCredentials} className="mt-4 space-y-4 text-xs">
-              <div>
-                <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
-                  Current Password *
-                </label>
-                <input
-                  name="currentPassword"
-                  type="password"
-                  required
-                  placeholder="Enter current password"
-                  className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded font-mono focus:border-white focus:outline-none"
-                />
+            <form onSubmit={handleUpdateAdminCredentials} className="flex-1 flex flex-col min-h-0 mt-4 text-xs">
+              <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+                <div>
+                  <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
+                    Current Password *
+                  </label>
+                  <input
+                    name="currentPassword"
+                    type="password"
+                    required
+                    placeholder="Enter current password"
+                    className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded font-mono focus:border-white focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
+                    New Login Username *
+                  </label>
+                  <input
+                    name="newUsername"
+                    type="text"
+                    required
+                    defaultValue={credentials.username}
+                    className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded font-mono focus:border-white focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
+                    New Password *
+                  </label>
+                  <input
+                    name="newPassword"
+                    type="password"
+                    required
+                    placeholder="••••••••"
+                    className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded font-mono focus:border-white focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
+                    Confirm New Password *
+                  </label>
+                  <input
+                    name="confirmPassword"
+                    type="password"
+                    required
+                    placeholder="••••••••"
+                    className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded font-mono focus:border-white focus:outline-none"
+                  />
+                </div>
               </div>
 
-              <div>
-                <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
-                  New Login Username *
-                </label>
-                <input
-                  name="newUsername"
-                  type="text"
-                  required
-                  defaultValue={credentials.username}
-                  className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded font-mono focus:border-white focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
-                  New Password *
-                </label>
-                <input
-                  name="newPassword"
-                  type="password"
-                  required
-                  placeholder="••••••••"
-                  className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded font-mono focus:border-white focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
-                  Confirm New Password *
-                </label>
-                <input
-                  name="confirmPassword"
-                  type="password"
-                  required
-                  placeholder="••••••••"
-                  className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded font-mono focus:border-white focus:outline-none"
-                />
-              </div>
-
-              <div className="flex justify-end gap-3 pt-3 border-t border-white/10">
+              <div className="shrink-0 flex justify-end gap-3 pt-3 mt-4 border-t border-white/10">
                 <button
                   type="button"
                   onClick={() => setIsCredentialsModalOpen(false)}
@@ -3897,9 +3972,9 @@ function AdminDashboard({
       {/* ADD ITEM TO CUSTOMER BAG MODAL */}
       {/* ======================================================== */}
       {isAddCartItemOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="w-full max-w-md border border-white/20 bg-zinc-950 p-6 rounded shadow-2xl text-white">
-            <div className="flex items-center justify-between border-b border-white/10 pb-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-3 sm:p-6 overflow-y-auto">
+          <div className="w-full max-w-md max-h-[90vh] flex flex-col border border-white/20 bg-zinc-950 p-6 rounded-lg shadow-2xl text-white my-auto">
+            <div className="flex items-center justify-between border-b border-white/10 pb-4 shrink-0">
               <div className="flex items-center gap-2">
                 <ShoppingBag className="h-5 w-5 text-emerald-400" />
                 <h3 className="text-base font-bold uppercase tracking-wider">
@@ -3907,101 +3982,104 @@ function AdminDashboard({
                 </h3>
               </div>
               <button
+                type="button"
                 onClick={() => setIsAddCartItemOpen(false)}
-                className="text-zinc-400 hover:text-white"
+                className="text-zinc-400 hover:text-white shrink-0 p-1 rounded hover:bg-white/10"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
-            <form onSubmit={handleManualAddCartItem} className="mt-4 space-y-4 text-xs">
-              <div>
-                <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
-                  Assign To Client Account *
-                </label>
-                <select
-                  name="userId"
-                  className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded focus:border-white focus:outline-none"
-                >
-                  {usersList.length > 0 ? (
-                    usersList.map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {u.name} ({u.phone})
+            <form onSubmit={handleManualAddCartItem} className="flex-1 flex flex-col min-h-0 mt-4 text-xs">
+              <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+                <div>
+                  <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
+                    Assign To Client Account *
+                  </label>
+                  <select
+                    name="userId"
+                    className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded focus:border-white focus:outline-none"
+                  >
+                    {usersList.length > 0 ? (
+                      usersList.map((u) => (
+                        <option key={u.id} value={u.id}>
+                          {u.name} ({u.phone})
+                        </option>
+                      ))
+                    ) : (
+                      <option value="guest-shopper">Active Storefront Visitor</option>
+                    )}
+                    {usersList.length > 0 && (
+                      <option value="guest-shopper">Guest / Unregistered Shopper</option>
+                    )}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
+                    Select Silhouette Piece *
+                  </label>
+                  <select
+                    name="productId"
+                    className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded focus:border-white focus:outline-none"
+                  >
+                    {productsList.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} — {formatPrice(p.price)}
                       </option>
-                    ))
-                  ) : (
-                    <option value="guest-shopper">Active Storefront Visitor</option>
-                  )}
-                  {usersList.length > 0 && (
-                    <option value="guest-shopper">Guest / Unregistered Shopper</option>
-                  )}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
-                  Select Silhouette Piece *
-                </label>
-                <select
-                  name="productId"
-                  className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded focus:border-white focus:outline-none"
-                >
-                  {productsList.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} — {formatPrice(p.price)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
-                    Size
-                  </label>
-                  <select
-                    name="size"
-                    defaultValue="L"
-                    className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded focus:border-white focus:outline-none"
-                  >
-                    <option value="S">S</option>
-                    <option value="M">M</option>
-                    <option value="L">L</option>
-                    <option value="XL">XL</option>
-                    <option value="XXL">XXL</option>
+                    ))}
                   </select>
                 </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
+                      Size
+                    </label>
+                    <select
+                      name="size"
+                      defaultValue="L"
+                      className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded focus:border-white focus:outline-none"
+                    >
+                      <option value="S">S</option>
+                      <option value="M">M</option>
+                      <option value="L">L</option>
+                      <option value="XL">XL</option>
+                      <option value="XXL">XXL</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
+                      Color
+                    </label>
+                    <select
+                      name="color"
+                      defaultValue="Pitch Black"
+                      className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded focus:border-white focus:outline-none"
+                    >
+                      <option value="Pitch Black">Pitch Black</option>
+                      <option value="Ice White">Ice White</option>
+                      <option value="Shadow Charcoal">Shadow Charcoal</option>
+                      <option value="Crimson Red">Crimson Red</option>
+                    </select>
+                  </div>
+                </div>
+
                 <div>
                   <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
-                    Color
+                    Quantity
                   </label>
-                  <select
-                    name="color"
-                    defaultValue="Pitch Black"
+                  <input
+                    name="qty"
+                    type="number"
+                    min="1"
+                    defaultValue="1"
                     className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded focus:border-white focus:outline-none"
-                  >
-                    <option value="Pitch Black">Pitch Black</option>
-                    <option value="Ice White">Ice White</option>
-                    <option value="Shadow Charcoal">Shadow Charcoal</option>
-                    <option value="Crimson Red">Crimson Red</option>
-                  </select>
+                  />
                 </div>
               </div>
 
-              <div>
-                <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
-                  Quantity
-                </label>
-                <input
-                  name="qty"
-                  type="number"
-                  min="1"
-                  defaultValue="1"
-                  className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded focus:border-white focus:outline-none"
-                />
-              </div>
-
-              <div className="flex justify-end gap-3 pt-3 border-t border-white/10">
+              <div className="shrink-0 flex justify-end gap-3 pt-3 mt-4 border-t border-white/10">
                 <button
                   type="button"
                   onClick={() => setIsAddCartItemOpen(false)}
@@ -4025,9 +4103,9 @@ function AdminDashboard({
       {/* ADD ITEM TO CUSTOMER WISHLIST MODAL */}
       {/* ======================================================== */}
       {isAddWishlistItemOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="w-full max-w-md border border-white/20 bg-zinc-950 p-6 rounded shadow-2xl text-white">
-            <div className="flex items-center justify-between border-b border-white/10 pb-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-3 sm:p-6 overflow-y-auto">
+          <div className="w-full max-w-md max-h-[90vh] flex flex-col border border-white/20 bg-zinc-950 p-6 rounded-lg shadow-2xl text-white my-auto">
+            <div className="flex items-center justify-between border-b border-white/10 pb-4 shrink-0">
               <div className="flex items-center gap-2">
                 <Heart className="h-5 w-5 text-red-500 fill-red-500" />
                 <h3 className="text-base font-bold uppercase tracking-wider">
@@ -4035,54 +4113,57 @@ function AdminDashboard({
                 </h3>
               </div>
               <button
+                type="button"
                 onClick={() => setIsAddWishlistItemOpen(false)}
-                className="text-zinc-400 hover:text-white"
+                className="text-zinc-400 hover:text-white shrink-0 p-1 rounded hover:bg-white/10"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
-            <form onSubmit={handleManualAddWishlistItem} className="mt-4 space-y-4 text-xs">
-              <div>
-                <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
-                  Assign To Client Account *
-                </label>
-                <select
-                  name="userId"
-                  className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded focus:border-white focus:outline-none"
-                >
-                  {usersList.length > 0 ? (
-                    usersList.map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {u.name} ({u.phone})
+            <form onSubmit={handleManualAddWishlistItem} className="flex-1 flex flex-col min-h-0 mt-4 text-xs">
+              <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+                <div>
+                  <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
+                    Assign To Client Account *
+                  </label>
+                  <select
+                    name="userId"
+                    className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded focus:border-white focus:outline-none"
+                  >
+                    {usersList.length > 0 ? (
+                      usersList.map((u) => (
+                        <option key={u.id} value={u.id}>
+                          {u.name} ({u.phone})
+                        </option>
+                      ))
+                    ) : (
+                      <option value="guest-shopper">Active Storefront Visitor</option>
+                    )}
+                    {usersList.length > 0 && (
+                      <option value="guest-shopper">Guest / Unregistered Shopper</option>
+                    )}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
+                    Select Silhouette *
+                  </label>
+                  <select
+                    name="productId"
+                    className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded focus:border-white focus:outline-none"
+                  >
+                    {productsList.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} ({p.category}) — {formatPrice(p.price)}
                       </option>
-                    ))
-                  ) : (
-                    <option value="guest-shopper">Active Storefront Visitor</option>
-                  )}
-                  {usersList.length > 0 && (
-                    <option value="guest-shopper">Guest / Unregistered Shopper</option>
-                  )}
-                </select>
+                    ))}
+                  </select>
+                </div>
               </div>
 
-              <div>
-                <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
-                  Select Silhouette *
-                </label>
-                <select
-                  name="productId"
-                  className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded focus:border-white focus:outline-none"
-                >
-                  {productsList.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} ({p.category}) — {formatPrice(p.price)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="flex justify-end gap-3 pt-3 border-t border-white/10">
+              <div className="shrink-0 flex justify-end gap-3 pt-3 mt-4 border-t border-white/10">
                 <button
                   type="button"
                   onClick={() => setIsAddWishlistItemOpen(false)}

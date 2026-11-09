@@ -224,59 +224,174 @@ export async function deleteSizeFromSupabase(code: string): Promise<boolean> {
   }
 }
 
-export async function syncProductToSupabase(product: Product): Promise<boolean> {
-  if (!isSupabaseConfigured) return true;
-  try {
-    // Look up category slug
-    const categorySlug = product.category.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+export interface SupabaseSyncResult {
+  success: boolean;
+  error?: string | undefined;
+}
 
-    const payload = {
+export async function syncProductToSupabase(product: Product): Promise<SupabaseSyncResult> {
+  if (!isSupabaseConfigured) return { success: true };
+  try {
+    // 1. Resolve category slug
+    const categories = getCachedCategories();
+    const matchCat = categories.find(
+      (c) =>
+        c.name.trim().toLowerCase() === product.category.trim().toLowerCase() ||
+        c.slug.trim().toLowerCase() === product.category.trim().toLowerCase(),
+    );
+    const categorySlug =
+      matchCat?.slug ||
+      product.category.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+
+    // 2. Pre-emptively ensure category exists in public.categories so foreign key constraint NEVER fails
+    if (categorySlug) {
+      try {
+        await supabase.from("categories").upsert(
+          {
+            slug: categorySlug,
+            name: product.category || categorySlug,
+            is_active: true,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "slug" },
+        );
+      } catch (catErr) {
+        console.warn("Category pre-sync notice:", catErr);
+      }
+    }
+
+    // 3. Ensure compare_at_price satisfies PostgreSQL CHECK (compare_at_price >= price)
+    let safeComparePrice: number | null = null;
+    if (
+      typeof product.compareAtPrice === "number" &&
+      !isNaN(product.compareAtPrice) &&
+      product.compareAtPrice >= product.price
+    ) {
+      safeComparePrice = product.compareAtPrice;
+    }
+
+    const payload: Record<string, any> = {
       id: product.id,
       slug: product.slug,
       name: product.name,
-      category_slug: categorySlug,
+      category_slug: categorySlug || null,
       price: product.price,
-      compare_at_price: product.compareAtPrice || null,
-      rating: product.rating,
-      reviews_count: product.reviews,
-      images: product.images,
-      colors: product.colors || [],
-      sizes: product.sizes,
-      description: product.description,
-      fabric: product.fabric,
-      care: product.care,
-      badges: product.badges || [],
+      compare_at_price: safeComparePrice,
+      rating: product.rating ?? 5.0,
+      reviews_count: product.reviews ?? 1,
+      images: Array.isArray(product.images) ? product.images : [],
+      colors: Array.isArray(product.colors) ? product.colors : [],
+      sizes: Array.isArray(product.sizes) ? product.sizes : ["S", "M", "L", "XL", "XXL"],
+      description: product.description || "",
+      fabric: product.fabric || "",
+      care: Array.isArray(product.care) ? product.care : [],
+      badges: Array.isArray(product.badges) ? product.badges : [],
       is_new: product.isNew ?? false,
       is_bestseller: product.isBestSeller ?? false,
       is_active: true,
       updated_at: new Date().toISOString(),
     };
 
-    const { error } = await supabase.from("products").upsert(payload, { onConflict: "id" });
-    if (error) {
-      console.warn("Supabase product upsert notice:", error.message);
-      return false;
+    let { error } = await supabase.from("products").upsert(payload, { onConflict: "id" });
+
+    // Graceful recovery: If table doesn't have 'colors' column yet, retry without 'colors'
+    if (error && error.message && error.message.toLowerCase().includes("colors")) {
+      console.warn("Retrying Supabase upsert without colors column:", error.message);
+      const { colors: _ignored, ...payloadWithoutColors } = payload;
+      const retry = await supabase.from("products").upsert(payloadWithoutColors, { onConflict: "id" });
+      error = retry.error;
     }
-    return true;
-  } catch (err) {
-    console.warn("Product sync exception:", err);
-    return false;
+
+    if (error) {
+      console.error("Supabase product upsert error:", error.message, error);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true };
+  } catch (err: any) {
+    console.error("Product sync exception:", err);
+    return {
+      success: false,
+      error: err?.message || "Network exception while connecting to Supabase",
+    };
   }
 }
 
-export async function deleteProductFromSupabase(productId: string): Promise<boolean> {
-  if (!isSupabaseConfigured) return true;
+export async function deleteProductFromSupabase(productId: string): Promise<SupabaseSyncResult> {
+  if (!isSupabaseConfigured) return { success: true };
   try {
     const { error } = await supabase.from("products").delete().eq("id", productId);
     if (error) {
-      console.warn("Supabase product delete notice:", error.message);
-      return false;
+      console.error("Supabase product delete notice:", error.message);
+      return { success: false, error: error.message };
     }
-    return true;
-  } catch (err) {
-    console.warn("Product delete exception:", err);
-    return false;
+    return { success: true };
+  } catch (err: any) {
+    console.error("Product delete exception:", err);
+    return { success: false, error: err?.message || "Network exception during deletion" };
   }
+}
+
+/**
+ * Saves a product locally and synchronously updates cache, then awaits Supabase persistence.
+ */
+export async function saveProduct(
+  product: Product,
+): Promise<{ success: boolean; list: Product[]; error?: string | undefined }> {
+  const stampedProduct: Product = {
+    ...product,
+    updatedAt: new Date().toISOString(),
+  };
+
+  const current = getCachedProducts();
+  const exists = current.some((p) => p.id === product.id);
+  const next = exists
+    ? current.map((p) => (p.id === product.id ? stampedProduct : p))
+    : [...current, stampedProduct];
+
+  if (typeof window !== "undefined") {
+    try {
+      localStorage.setItem(PRODUCTS_STORAGE_KEY, JSON.stringify(next));
+    } catch (err) {
+      console.warn("Failed saving product to localStorage:", err);
+    }
+  }
+
+  broadcastSync("PRODUCTS_UPDATED", stampedProduct);
+  const syncResult = await syncProductToSupabase(stampedProduct);
+
+  return {
+    success: syncResult.success,
+    list: next,
+    error: syncResult.error,
+  };
+}
+
+/**
+ * Removes a product locally and synchronously updates cache, then awaits Supabase deletion.
+ */
+export async function deleteProduct(
+  productId: string,
+): Promise<{ success: boolean; list: Product[]; error?: string | undefined }> {
+  const current = getCachedProducts();
+  const next = current.filter((p) => p.id !== productId);
+
+  if (typeof window !== "undefined") {
+    try {
+      localStorage.setItem(PRODUCTS_STORAGE_KEY, JSON.stringify(next));
+    } catch (err) {
+      console.warn("Failed deleting product from localStorage:", err);
+    }
+  }
+
+  broadcastSync("PRODUCTS_UPDATED", { id: productId });
+  const deleteResult = await deleteProductFromSupabase(productId);
+
+  return {
+    success: deleteResult.success,
+    list: next,
+    error: deleteResult.error,
+  };
 }
 
 /**
@@ -593,76 +708,57 @@ export async function fetchProducts(): Promise<Product[]> {
     }
 
     if (data && data.length > 0) {
-      const localCached = getCachedProducts();
+      const categories = getCachedCategories();
       const mapped: Product[] = data.map((row) => {
-        const localMatch = localCached.find((p) => p.id === row.id || p.slug === row.slug);
-        const fallbackMatch = initialProducts.find((p) => p.id === row.id || p.slug === row.slug);
-
-        // If this product was updated or configured in Admin, preserve the admin specs!
-        if (localMatch && localMatch.updatedAt) {
-          const remoteTime = row.updated_at ? new Date(row.updated_at).getTime() : 0;
-          const localTime = new Date(localMatch.updatedAt).getTime();
-          if (localTime >= remoteTime) {
-            return localMatch;
-          }
-        }
+        const catMatch = categories.find((c) => c.slug === row.category_slug);
+        const resolvedCategory =
+          catMatch?.name ||
+          (row.category_slug
+            ? row.category_slug
+                .split("-")
+                .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1))
+                .join(" ")
+            : "T-Shirts");
 
         return {
           id: row.id,
           slug: row.slug,
-          name: localMatch?.name || row.name,
-          category: (row.category_slug
-            ? row.category_slug.charAt(0).toUpperCase() +
-              row.category_slug.slice(1).replace("-", " ")
-            : (localMatch?.category || "T-Shirts")),
-          price: localMatch?.price ?? Number(row.price),
-          compareAtPrice:
-            localMatch?.compareAtPrice ??
-            (row.compare_at_price ? Number(row.compare_at_price) : undefined),
+          name: row.name,
+          category: resolvedCategory,
+          price: Number(row.price),
+          compareAtPrice: row.compare_at_price ? Number(row.compare_at_price) : undefined,
           rating: Number(row.rating ?? 5.0),
           reviews: Number(row.reviews_count ?? 1),
-          images:
-            localMatch?.images !== undefined
-              ? localMatch.images
-              : Array.isArray(row.images) &&
-                row.images.length > 0 &&
-                !row.images[0].includes("placeholder.svg")
-                ? row.images
-                : (fallbackMatch?.images ?? []),
+          images: Array.isArray(row.images) ? row.images : [],
           colors:
-            localMatch?.colors ||
-            (Array.isArray(row.colors) && row.colors.length > 0 ? row.colors : undefined) ||
-            fallbackMatch?.colors || [
-              { name: "Pitch Black", hex: "#0a0a0a" },
-              { name: "Ice White", hex: "#f5f5f5" },
-            ],
+            Array.isArray(row.colors) && row.colors.length > 0
+              ? row.colors
+              : [
+                  { name: "Pitch Black", hex: "#0a0a0a" },
+                  { name: "Shadow Charcoal", hex: "#27272a" },
+                  { name: "Ice White", hex: "#f5f5f5" },
+                ],
           sizes:
-            localMatch?.sizes && localMatch.sizes.length > 0
-              ? localMatch.sizes
-              : (Array.isArray(row.sizes) && row.sizes.length > 0
-                  ? row.sizes
-                  : ["S", "M", "L", "XL", "XXL"]),
-          description: localMatch?.description || row.description || "",
-          fabric: localMatch?.fabric || row.fabric || "",
-          care: localMatch?.care || row.care || [],
-          badges: localMatch?.badges || row.badges || [],
-          isNew: localMatch?.isNew ?? (row.is_new ?? true),
-          isBestSeller: localMatch?.isBestSeller ?? (row.is_bestseller ?? false),
-          updatedAt: localMatch?.updatedAt || row.updated_at || undefined,
+            Array.isArray(row.sizes) && row.sizes.length > 0
+              ? row.sizes
+              : ["S", "M", "L", "XL", "XXL"],
+          description: row.description || "",
+          fabric: row.fabric || "",
+          care: Array.isArray(row.care) ? row.care : [],
+          badges: Array.isArray(row.badges) ? row.badges : [],
+          isNew: Boolean(row.is_new),
+          isBestSeller: Boolean(row.is_bestseller),
+          updatedAt: row.updated_at,
         };
       });
 
-      // Merge any locally added products not yet in Supabase
-      const remoteIds = new Set(mapped.map((p) => p.id));
-      const extraLocal = localCached.filter((p) => !remoteIds.has(p.id));
-      const combined = [...mapped, ...extraLocal];
-
+      // Synchronize localStorage cache with the fresh database records directly
       try {
-        localStorage.setItem(PRODUCTS_STORAGE_KEY, JSON.stringify(combined));
+        localStorage.setItem(PRODUCTS_STORAGE_KEY, JSON.stringify(mapped));
       } catch {
         /* ignore */
       }
-      return combined;
+      return mapped;
     }
   } catch (err) {
     console.warn("Products fetch error fallback:", err);
