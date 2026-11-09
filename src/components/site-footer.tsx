@@ -96,7 +96,7 @@ export function SiteFooter() {
                   +91 84697 11940
                 </a>
               </li>
-              <li>Mon – Sat, 10 AM – 7 PM IST</li>
+              {/* <li>Mon – Sat, 10 AM – 7 PM IST</li> */}
               <li className="text-xs text-zinc-500 pt-2">Direct Online Dispatch Across India</li>
             </ul>
           </div>

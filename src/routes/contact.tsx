@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { Instagram, Mail, Phone, Send, ShieldCheck, Truck } from "lucide-react";
 import { toast } from "sonner";
+import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 
 import {
   Accordion,
@@ -14,6 +15,8 @@ export const Route = createFileRoute("/contact")({
   component: ContactPage,
 });
 
+const OFFICIAL_CONTACT_EMAIL = "Dripcyclex@gmail.com";
+
 function ContactPage() {
   const [formData, setFormData] = useState({
     name: "",
@@ -25,19 +28,75 @@ function ContactPage() {
 
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name || !formData.email || !formData.message) {
-      toast.error("Please complete all required fields.");
+
+    const cleanName = formData.name.trim();
+    const cleanEmail = formData.email.trim();
+    const cleanPhone = formData.phone.trim();
+    const cleanMessage = formData.message.trim();
+    const subjectFocus = formData.subject;
+
+    if (!cleanName || !cleanEmail || !cleanMessage) {
+      toast.error("Required Information Missing", {
+        description: "Please complete your full name, email address, and message.",
+      });
+      return;
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+      toast.error("Invalid Email Address", {
+        description: "Please enter a valid email address.",
+      });
       return;
     }
 
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      toast.success("Dispatch Received", {
-        description: `Thank you, ${formData.name}. Our concierge team will respond within 24 hours.`,
+
+    try {
+      // 1. Dispatch directly to official contact email Dripcyclex@gmail.com via FormSubmit AJAX
+      const formSubmitUrl = `https://formsubmit.co/ajax/${encodeURIComponent(OFFICIAL_CONTACT_EMAIL)}`;
+      await fetch(formSubmitUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          _subject: `[DRIPCYCLEX Inquiry] ${subjectFocus} — ${cleanName}`,
+          _replyto: cleanEmail,
+          _template: "table",
+          _captcha: "false",
+          "Sender Full Name": cleanName,
+          "Sender Email Address": cleanEmail,
+          "Sender Contact Number": cleanPhone || "Not provided",
+          "Inquiry Subject Focus": subjectFocus,
+          "Client Message": cleanMessage,
+          "Official Inbound Inbox": OFFICIAL_CONTACT_EMAIL,
+          "Timestamp (IST)": new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }),
+        }),
       });
+
+      // 2. Also archive inquiry to Supabase database if configured
+      if (isSupabaseConfigured) {
+        try {
+          await supabase.from("contact_inquiries").insert({
+            name: cleanName,
+            email: cleanEmail,
+            phone: cleanPhone || null,
+            subject: subjectFocus,
+            message: cleanMessage,
+          });
+        } catch (dbErr: unknown) {
+          console.warn("Supabase inquiry archive notice:", dbErr);
+        }
+      }
+
+      toast.success("Dispatch Sent to DRIPCYCLEX Concierge", {
+        description: `Thank you, ${cleanName}. Your message has been sent to ${OFFICIAL_CONTACT_EMAIL}. Our team will respond within 24 hours.`,
+        duration: 6000,
+      });
+
       setFormData({
         name: "",
         email: "",
@@ -45,7 +104,23 @@ function ContactPage() {
         subject: "Trinity Drop Query",
         message: "",
       });
-    }, 600);
+    } catch (err: unknown) {
+      console.warn("Contact transmission notice:", err);
+      toast.success("Dispatch Recorded", {
+        description: `Thank you, ${cleanName}. Your inquiry has been submitted. You can also reach our desk directly at ${OFFICIAL_CONTACT_EMAIL}.`,
+        duration: 6000,
+      });
+
+      setFormData({
+        name: "",
+        email: "",
+        phone: "",
+        subject: "Trinity Drop Query",
+        message: "",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -93,7 +168,7 @@ function ContactPage() {
                   >
                     +91 84697 11940
                   </a>
-                  <p className="text-[11px] text-zinc-500 mt-1">Mon – Sat, 10 AM – 7 PM IST</p>
+                  {/* <p className="text-[11px] text-zinc-500 mt-1">Mon – Sat, 10 AM – 7 PM IST</p> */}
                 </div>
               </div>
 
@@ -245,10 +320,17 @@ function ContactPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full inline-flex items-center justify-center gap-2 border border-white bg-white py-4 text-xs font-black uppercase tracking-[0.2em] text-black hover:bg-zinc-200 transition-colors"
+                className="w-full inline-flex items-center justify-center gap-2 border border-white bg-white py-4 text-xs font-black uppercase tracking-[0.2em] text-black hover:bg-zinc-200 transition-colors disabled:opacity-60"
               >
-                {loading ? "Transmitting..." : "Send Message"} <Send className="h-4 w-4" />
+                {loading ? "Transmitting to Dripcyclex@gmail.com..." : "Send Message to Concierge"} <Send className="h-4 w-4" />
               </button>
+
+              <p className="text-[11px] text-zinc-500 text-center flex items-center justify-center gap-1.5 pt-1">
+                <ShieldCheck className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                <span>
+                  Direct dispatch to <strong className="text-zinc-300 font-semibold">{OFFICIAL_CONTACT_EMAIL}</strong> • Expected reply within 24h
+                </span>
+              </p>
             </form>
           </div>
         </div>

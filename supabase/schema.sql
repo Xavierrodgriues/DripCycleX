@@ -636,3 +636,35 @@ INSERT INTO public.product_colors (product_id, color_id)
 SELECT 'dcx-003', id FROM public.colors WHERE name IN ('Pitch Black', 'Shadow Charcoal')
 ON CONFLICT DO NOTHING;
 
+-- ==============================================================================
+-- 10. CONTACT INQUIRIES ARCHIVE
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.contact_inquiries (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL,
+    email TEXT NOT NULL,
+    phone TEXT,
+    subject TEXT NOT NULL,
+    message TEXT NOT NULL,
+    status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'in_progress', 'resolved')),
+    created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+ALTER TABLE public.contact_inquiries ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Anyone can insert contact inquiries" ON public.contact_inquiries;
+CREATE POLICY "Anyone can insert contact inquiries" 
+    ON public.contact_inquiries FOR INSERT 
+    WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Admins can view contact inquiries" ON public.contact_inquiries;
+CREATE POLICY "Admins can view contact inquiries" 
+    ON public.contact_inquiries FOR SELECT 
+    USING (
+        auth.uid() IN (
+            SELECT id FROM public.profiles WHERE role IN ('admin', 'staff')
+        )
+        OR auth.uid() IS NULL
+    );
+
+
