@@ -60,6 +60,8 @@ import {
   saveProductLocally,
   deleteProductLocally,
   uploadProductImage,
+  deleteProductImageFromStorage,
+  deleteProductImagesFromStorage,
   getCachedCategories,
   getCachedSizes,
   getCachedProducts,
@@ -642,13 +644,29 @@ function AdminDashboard({
     }
   };
 
-  const handleRemoveImage = (index: number, isEdit: boolean) => {
+  const handleRemoveImage = async (index: number, isEdit: boolean) => {
+    const list = isEdit ? editProductImages : newProductImages;
+    const targetUrl = list[index];
+    if (!targetUrl) return;
+
+    // Permanently remove from Supabase Storage bucket
+    await deleteProductImageFromStorage(targetUrl);
+
     if (isEdit) {
       setEditProductImages((prev) => prev.filter((_, idx) => idx !== index));
+      // If this photo was linked to any colorway, unmap it so state stays 100% in sync
+      setEditProductColors((prev) =>
+        prev.map((c) => (c.image === targetUrl ? { ...c, image: undefined } : c)),
+      );
     } else {
       setNewProductImages((prev) => prev.filter((_, idx) => idx !== index));
+      setNewProductColors((prev) =>
+        prev.map((c) => (c.image === targetUrl ? { ...c, image: undefined } : c)),
+      );
     }
-    toast.info("Image Removed from Carousel");
+    toast.info("Image Deleted", {
+      description: "Permanently removed from carousel and Supabase storage bucket.",
+    });
   };
 
   const handleSetCoverImage = (index: number, isEdit: boolean) => {
@@ -673,15 +691,45 @@ function AdminDashboard({
     });
   };
 
-  const handleClearAllImages = (isEdit: boolean) => {
-    if (confirm("Remove all existing images from this silhouette's carousel?")) {
+  const handleClearAllImages = async (isEdit: boolean) => {
+    if (confirm("Permanently delete all images from this silhouette's carousel and Supabase storage bucket?")) {
+      const list = isEdit ? editProductImages : newProductImages;
+      if (list.length > 0) {
+        await deleteProductImagesFromStorage(list);
+      }
       if (isEdit) {
         setEditProductImages([]);
+        setEditProductColors((prev) => prev.map((c) => ({ ...c, image: undefined })));
       } else {
         setNewProductImages([]);
+        setNewProductColors((prev) => prev.map((c) => ({ ...c, image: undefined })));
       }
       toast.info("All Images Removed", {
-        description: "Existing images cleared. You can upload new photos below.",
+        description: "Images cleared and permanently deleted from Supabase storage bucket.",
+      });
+    }
+  };
+
+  const handlePurgeUnmappedImages = async (isEdit: boolean) => {
+    const images = isEdit ? editProductImages : newProductImages;
+    const colors = isEdit ? editProductColors : newProductColors;
+    const mappedImages = new Set(colors.map((c) => c.image).filter(Boolean));
+    const unmapped = images.filter((img) => !mappedImages.has(img));
+
+    if (unmapped.length === 0) {
+      toast.info("No unmapped images to purge.");
+      return;
+    }
+
+    if (confirm(`Permanently delete ${unmapped.length} unmapped photo(s) from Supabase storage bucket?`)) {
+      await deleteProductImagesFromStorage(unmapped);
+      if (isEdit) {
+        setEditProductImages((prev) => prev.filter((img) => mappedImages.has(img)));
+      } else {
+        setNewProductImages((prev) => prev.filter((img) => mappedImages.has(img)));
+      }
+      toast.success("Unmapped Photos Purged", {
+        description: `Removed ${unmapped.length} unmapped photo(s) from Supabase bucket & carousel.`,
       });
     }
   };
@@ -700,23 +748,47 @@ function AdminDashboard({
 
     setIsUploadingImage(true);
     const prodId = isEdit && editingProduct ? editingProduct.id : `dcx-new-${Date.now()}`;
+    const currentColors = isEdit ? editProductColors : newProductColors;
+    const oldImage = currentColors[colorIndex]?.image;
 
     try {
       const res = await uploadProductImage(file, prodId);
       if (res.url) {
+        // If colorway already had an image, check if another colorway uses it
+        if (oldImage && oldImage !== res.url) {
+          const usedByOther = currentColors.some(
+            (c, idx) => idx !== colorIndex && c.image === oldImage,
+          );
+          if (!usedByOther) {
+            deleteProductImageFromStorage(oldImage).catch((err) =>
+              console.warn("Storage cleanup notice for replaced color photo:", err),
+            );
+          }
+        }
+
         if (isEdit) {
           setEditProductColors((prev) =>
             prev.map((c, idx) => (idx === colorIndex ? { ...c, image: res.url } : c)),
           );
-          setEditProductImages((prev) => (prev.includes(res.url) ? prev : [...prev, res.url]));
+          setEditProductImages((prev) => {
+            const withoutOld = oldImage && !currentColors.some((c, idx) => idx !== colorIndex && c.image === oldImage)
+              ? prev.filter((img) => img !== oldImage)
+              : prev;
+            return withoutOld.includes(res.url) ? withoutOld : [...withoutOld, res.url];
+          });
         } else {
           setNewProductColors((prev) =>
             prev.map((c, idx) => (idx === colorIndex ? { ...c, image: res.url } : c)),
           );
-          setNewProductImages((prev) => (prev.includes(res.url) ? prev : [...prev, res.url]));
+          setNewProductImages((prev) => {
+            const withoutOld = oldImage && !currentColors.some((c, idx) => idx !== colorIndex && c.image === oldImage)
+              ? prev.filter((img) => img !== oldImage)
+              : prev;
+            return withoutOld.includes(res.url) ? withoutOld : [...withoutOld, res.url];
+          });
         }
         toast.success("Color Photo Attached", {
-          description: "Photo linked to colorway & added to carousel.",
+          description: "Photo linked to colorway & synchronized with carousel.",
           id: `color-img-${colorIndex}`,
         });
       }
@@ -728,7 +800,24 @@ function AdminDashboard({
     }
   };
 
-  const handleRemoveColorPhoto = (colorIndex: number, isEdit: boolean) => {
+  const handleRemoveColorPhoto = async (colorIndex: number, isEdit: boolean) => {
+    const currentColors = isEdit ? editProductColors : newProductColors;
+    const oldImage = currentColors[colorIndex]?.image;
+
+    if (oldImage) {
+      const usedByOther = currentColors.some(
+        (c, idx) => idx !== colorIndex && c.image === oldImage,
+      );
+      if (!usedByOther) {
+        await deleteProductImageFromStorage(oldImage);
+        if (isEdit) {
+          setEditProductImages((prev) => prev.filter((img) => img !== oldImage));
+        } else {
+          setNewProductImages((prev) => prev.filter((img) => img !== oldImage));
+        }
+      }
+    }
+
     if (isEdit) {
       setEditProductColors((prev) =>
         prev.map((c, idx) => (idx === colorIndex ? { ...c, image: undefined } : c)),
@@ -738,7 +827,9 @@ function AdminDashboard({
         prev.map((c, idx) => (idx === colorIndex ? { ...c, image: undefined } : c)),
       );
     }
-    toast.info("Color Photo Cleared", { description: "Unlinked photo from this colorway." });
+    toast.info("Color Photo Removed", {
+      description: "Photo unlinked from colorway and purged from Supabase storage bucket.",
+    });
   };
 
   const handleToggleColorSize = (
@@ -807,18 +898,31 @@ function AdminDashboard({
     });
   };
 
-  const handleRemoveColorway = (colorIndex: number, isEdit: boolean) => {
-    if (isEdit) {
-      if (editProductColors.length <= 1) {
-        toast.error("Cannot Remove", { description: "Product must have at least one colorway." });
-        return;
+  const handleRemoveColorway = async (colorIndex: number, isEdit: boolean) => {
+    const currentColors = isEdit ? editProductColors : newProductColors;
+    if (currentColors.length <= 1) {
+      toast.error("Cannot Remove", { description: "Product must have at least one colorway." });
+      return;
+    }
+
+    const targetColor = currentColors[colorIndex];
+    if (targetColor?.image) {
+      const usedByOther = currentColors.some(
+        (c, idx) => idx !== colorIndex && c.image === targetColor.image,
+      );
+      if (!usedByOther) {
+        await deleteProductImageFromStorage(targetColor.image);
+        if (isEdit) {
+          setEditProductImages((prev) => prev.filter((img) => img !== targetColor.image));
+        } else {
+          setNewProductImages((prev) => prev.filter((img) => img !== targetColor.image));
+        }
       }
+    }
+
+    if (isEdit) {
       setEditProductColors((prev) => prev.filter((_, idx) => idx !== colorIndex));
     } else {
-      if (newProductColors.length <= 1) {
-        toast.error("Cannot Remove", { description: "Product must have at least one colorway." });
-        return;
-      }
       setNewProductColors((prev) => prev.filter((_, idx) => idx !== colorIndex));
     }
   };
@@ -838,7 +942,7 @@ function AdminDashboard({
             ? selectedEditProductSizes
             : updated.sizes,
       colors: editProductColors,
-      images: editProductImages,
+      images: Array.from(new Set(editProductImages)),
     };
 
     setIsSavingProduct(true);
@@ -876,8 +980,8 @@ function AdminDashboard({
   };
 
   const handleDeleteProduct = async (id: string, name: string) => {
-    if (confirm(`Are you sure you want to delete ${name} from database and storefront?`)) {
-      const toastId = toast.loading(`Deleting ${name} from Supabase...`, {
+    if (confirm(`Are you sure you want to delete ${name} from database and storefront? All associated photos will also be purged from Supabase bucket.`)) {
+      const toastId = toast.loading(`Deleting ${name} and purging storage assets...`, {
         id: `prod-delete-${id}`,
       });
       const res = await deleteProduct(id);
@@ -885,7 +989,7 @@ function AdminDashboard({
 
       if (res.success) {
         toast.success("Product Deleted", {
-          description: `${name} has been removed from Supabase and active drops.`,
+          description: `${name} and all uploaded photos have been purged from Supabase and active drops.`,
           id: toastId,
         });
       } else {
@@ -923,7 +1027,7 @@ function AdminDashboard({
       compareAtPrice: comparePriceVal,
       rating: 5.0,
       reviews: 1,
-      images: newProductImages.length > 0 ? newProductImages : [],
+      images: Array.from(new Set(newProductImages)),
       colors: newProductColors,
       sizes: allColorSizes.length > 0 ? allColorSizes : chosenSizes,
       description:
@@ -2743,58 +2847,95 @@ function AdminDashboard({
               {/* PRODUCT CAROUSEL IMAGERY & SUPABASE STORAGE UPLOADER */}
               <div className="space-y-2 border-t border-b border-white/10 py-3">
                 <div className="flex items-center justify-between">
-                  <label className="block text-zinc-400 uppercase font-bold tracking-wider">
-                    Silhouette Imagery & Carousel ({editProductImages.length})
-                  </label>
-                  {editProductImages.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => handleClearAllImages(true)}
-                      className="text-[10px] text-red-400 hover:text-red-300 underline cursor-pointer"
-                    >
-                      Remove All Existing Images
-                    </button>
-                  )}
+                  <div>
+                    <label className="block text-zinc-400 uppercase font-bold tracking-wider text-xs">
+                      Silhouette Imagery & Carousel ({editProductImages.length})
+                    </label>
+                    <span className="text-[10px] text-zinc-500">
+                      Color photos & gallery shots. Deleting permanently removes from Supabase bucket.
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {(() => {
+                      const mappedImages = new Set(editProductColors.map((c) => c.image).filter(Boolean));
+                      const unmappedCount = editProductImages.filter((img) => !mappedImages.has(img)).length;
+                      return unmappedCount > 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => handlePurgeUnmappedImages(true)}
+                          className="text-[10px] text-amber-400 hover:text-amber-300 underline cursor-pointer"
+                          title="Purge images not linked to any colorway from Supabase"
+                        >
+                          Purge Unmapped ({unmappedCount})
+                        </button>
+                      ) : null;
+                    })()}
+                    {editProductImages.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => handleClearAllImages(true)}
+                        className="text-[10px] text-red-400 hover:text-red-300 underline cursor-pointer"
+                      >
+                        Remove All Existing Images
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {/* Carousel Image Preview Thumbnails */}
                 {editProductImages.length > 0 ? (
                   <div className="grid grid-cols-4 sm:grid-cols-5 gap-2 p-2 bg-black border border-white/10 rounded">
-                    {editProductImages.map((imgUrl, idx) => (
-                      <div
-                        key={idx}
-                        className="group relative aspect-[3/4] rounded overflow-hidden border border-white/20 bg-zinc-900"
-                      >
-                        <img
-                          src={imgUrl}
-                          alt=""
-                          className="h-full w-full object-cover"
-                        />
-                        <div className="absolute top-1 left-1 bg-black/85 px-1 py-0.5 text-[9px] font-mono font-bold text-white rounded">
-                          {idx === 0 ? "Cover" : `#${idx + 1}`}
-                        </div>
-                        <div className="absolute inset-0 bg-black/80 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 p-1">
-                          {idx > 0 && (
+                    {editProductImages.map((imgUrl, idx) => {
+                      const linkedColor = editProductColors.find((c) => c.image === imgUrl);
+                      return (
+                        <div
+                          key={`${imgUrl}-${idx}`}
+                          className="group relative aspect-[3/4] rounded overflow-hidden border border-white/20 bg-zinc-900"
+                        >
+                          <img
+                            src={imgUrl}
+                            alt=""
+                            className="h-full w-full object-cover"
+                          />
+                          <div className="absolute top-1 left-1 bg-black/85 px-1 py-0.5 text-[9px] font-mono font-bold text-white rounded z-10">
+                            {idx === 0 ? "Cover" : `#${idx + 1}`}
+                          </div>
+                          {linkedColor ? (
+                            <div className="absolute bottom-1 left-1 right-1 bg-black/90 px-1 py-0.5 text-[8px] font-mono font-bold text-emerald-400 rounded flex items-center gap-1 border border-emerald-500/30 truncate z-10">
+                              <span
+                                className="h-1.5 w-1.5 rounded-full shrink-0"
+                                style={{ backgroundColor: linkedColor.hex }}
+                              />
+                              <span className="truncate">{linkedColor.name}</span>
+                            </div>
+                          ) : (
+                            <div className="absolute bottom-1 left-1 right-1 bg-black/75 px-1 py-0.5 text-[8px] font-mono text-zinc-400 rounded truncate text-center z-10">
+                              Gallery
+                            </div>
+                          )}
+                          <div className="absolute inset-0 bg-black/85 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 p-1 z-20">
+                            {idx > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => handleSetCoverImage(idx, true)}
+                                className="text-[9px] bg-white text-black font-bold px-1.5 py-0.5 rounded uppercase hover:bg-zinc-200"
+                                title="Set as primary drop cover"
+                              >
+                                Cover
+                              </button>
+                            )}
                             <button
                               type="button"
-                              onClick={() => handleSetCoverImage(idx, true)}
-                              className="text-[9px] bg-white text-black font-bold px-1.5 py-0.5 rounded uppercase hover:bg-zinc-200"
-                              title="Set as primary drop cover"
+                              onClick={() => handleRemoveImage(idx, true)}
+                              className="text-[9px] bg-red-600 text-white font-bold px-1.5 py-0.5 rounded uppercase hover:bg-red-500"
+                              title="Delete permanently from Supabase bucket & carousel"
                             >
-                              Cover
+                              Delete
                             </button>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveImage(idx, true)}
-                            className="text-[9px] bg-red-600 text-white font-bold px-1.5 py-0.5 rounded uppercase hover:bg-red-500"
-                            title="Remove from carousel"
-                          >
-                            Delete
-                          </button>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 ) : (
                   <div className="p-3 text-center bg-zinc-900/60 border border-dashed border-white/15 rounded text-zinc-400 text-xs">
@@ -3188,58 +3329,95 @@ function AdminDashboard({
               {/* PRODUCT CAROUSEL IMAGERY & SUPABASE STORAGE UPLOADER */}
               <div className="space-y-2 border-t border-b border-white/10 py-3">
                 <div className="flex items-center justify-between">
-                  <label className="block text-zinc-400 uppercase font-bold tracking-wider">
-                    Silhouette Imagery & Carousel ({newProductImages.length})
-                  </label>
-                  {newProductImages.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => handleClearAllImages(false)}
-                      className="text-[10px] text-red-400 hover:text-red-300 underline cursor-pointer"
-                    >
-                      Clear Images
-                    </button>
-                  )}
+                  <div>
+                    <label className="block text-zinc-400 uppercase font-bold tracking-wider text-xs">
+                      Silhouette Imagery & Carousel ({newProductImages.length})
+                    </label>
+                    <span className="text-[10px] text-zinc-500">
+                      Color photos & gallery shots. Deleting permanently removes from Supabase bucket.
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {(() => {
+                      const mappedImages = new Set(newProductColors.map((c) => c.image).filter(Boolean));
+                      const unmappedCount = newProductImages.filter((img) => !mappedImages.has(img)).length;
+                      return unmappedCount > 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => handlePurgeUnmappedImages(false)}
+                          className="text-[10px] text-amber-400 hover:text-amber-300 underline cursor-pointer"
+                          title="Purge images not linked to any colorway from Supabase"
+                        >
+                          Purge Unmapped ({unmappedCount})
+                        </button>
+                      ) : null;
+                    })()}
+                    {newProductImages.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => handleClearAllImages(false)}
+                        className="text-[10px] text-red-400 hover:text-red-300 underline cursor-pointer"
+                      >
+                        Clear Images
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {/* Carousel Image Preview Thumbnails */}
                 {newProductImages.length > 0 ? (
                   <div className="grid grid-cols-4 sm:grid-cols-5 gap-2 p-2 bg-black border border-white/10 rounded">
-                    {newProductImages.map((imgUrl, idx) => (
-                      <div
-                        key={idx}
-                        className="group relative aspect-[3/4] rounded overflow-hidden border border-white/20 bg-zinc-900"
-                      >
-                        <img
-                          src={imgUrl}
-                          alt=""
-                          className="h-full w-full object-cover"
-                        />
-                        <div className="absolute top-1 left-1 bg-black/85 px-1 py-0.5 text-[9px] font-mono font-bold text-white rounded">
-                          {idx === 0 ? "Cover" : `#${idx + 1}`}
-                        </div>
-                        <div className="absolute inset-0 bg-black/80 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 p-1">
-                          {idx > 0 && (
+                    {newProductImages.map((imgUrl, idx) => {
+                      const linkedColor = newProductColors.find((c) => c.image === imgUrl);
+                      return (
+                        <div
+                          key={`${imgUrl}-${idx}`}
+                          className="group relative aspect-[3/4] rounded overflow-hidden border border-white/20 bg-zinc-900"
+                        >
+                          <img
+                            src={imgUrl}
+                            alt=""
+                            className="h-full w-full object-cover"
+                          />
+                          <div className="absolute top-1 left-1 bg-black/85 px-1 py-0.5 text-[9px] font-mono font-bold text-white rounded z-10">
+                            {idx === 0 ? "Cover" : `#${idx + 1}`}
+                          </div>
+                          {linkedColor ? (
+                            <div className="absolute bottom-1 left-1 right-1 bg-black/90 px-1 py-0.5 text-[8px] font-mono font-bold text-emerald-400 rounded flex items-center gap-1 border border-emerald-500/30 truncate z-10">
+                              <span
+                                className="h-1.5 w-1.5 rounded-full shrink-0"
+                                style={{ backgroundColor: linkedColor.hex }}
+                              />
+                              <span className="truncate">{linkedColor.name}</span>
+                            </div>
+                          ) : (
+                            <div className="absolute bottom-1 left-1 right-1 bg-black/75 px-1 py-0.5 text-[8px] font-mono text-zinc-400 rounded truncate text-center z-10">
+                              Gallery
+                            </div>
+                          )}
+                          <div className="absolute inset-0 bg-black/85 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 p-1 z-20">
+                            {idx > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => handleSetCoverImage(idx, false)}
+                                className="text-[9px] bg-white text-black font-bold px-1.5 py-0.5 rounded uppercase hover:bg-zinc-200"
+                                title="Set as primary drop cover"
+                              >
+                                Cover
+                              </button>
+                            )}
                             <button
                               type="button"
-                              onClick={() => handleSetCoverImage(idx, false)}
-                              className="text-[9px] bg-white text-black font-bold px-1.5 py-0.5 rounded uppercase hover:bg-zinc-200"
-                              title="Set as primary drop cover"
+                              onClick={() => handleRemoveImage(idx, false)}
+                              className="text-[9px] bg-red-600 text-white font-bold px-1.5 py-0.5 rounded uppercase hover:bg-red-500"
+                              title="Delete permanently from Supabase bucket & carousel"
                             >
-                              Cover
+                              Delete
                             </button>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveImage(idx, false)}
-                            className="text-[9px] bg-red-600 text-white font-bold px-1.5 py-0.5 rounded uppercase hover:bg-red-500"
-                            title="Remove from carousel"
-                          >
-                            Delete
-                          </button>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 ) : (
                   <div className="p-3 text-center bg-zinc-900/60 border border-dashed border-white/15 rounded text-zinc-400 text-xs">

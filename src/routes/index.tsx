@@ -59,7 +59,7 @@ export function Index() {
   };
 
   return (
-    <div className="flex flex-col bg-background text-foreground">
+    <div className="flex flex-col bg-background text-foreground min-w-0 w-full max-w-full overflow-x-clip">
       {/* Hero Campaign Section */}
       <section className="relative min-h-[90vh] w-full overflow-hidden bg-black flex items-center border-b border-white/10">
         <img
@@ -71,15 +71,15 @@ export function Index() {
         <div className="absolute inset-0 bg-gradient-to-t from-black via-black/80 to-black/40" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_var(--tw-gradient-stops))] from-white/5 via-transparent to-black" />
 
-        <div className="relative z-10 mx-auto w-full max-w-[1400px] px-5 py-24 sm:px-8 lg:px-12">
+        <div className="relative z-10 mx-auto w-full max-w-[1400px] px-4 py-16 sm:px-8 sm:py-24 lg:px-12 min-w-0">
           <Reveal className="max-w-3xl">
-            <h1 className="display-xl text-5xl sm:text-7xl lg:text-8xl leading-[0.88] text-white">
+            <h1 className="display-xl text-3xl sm:text-6xl md:text-7xl lg:text-8xl leading-[0.9] text-white break-words">
               BORN IN SHADOW.
               <br />
               <span className="text-zinc-400">ENGINEERED FOR</span> THE STREETS.
             </h1>
 
-            <p className="mt-6 text-base sm:text-xl font-normal leading-relaxed text-zinc-300 max-w-2xl">
+            <p className="mt-6 text-sm sm:text-lg md:text-xl font-normal leading-relaxed text-zinc-300 max-w-2xl">
               DRIPCYCLEX redefines luxury Indian streetwear. A curated 3-piece capsule cut from
               240–480 GSM milled cottons with draconic precision and distressed chrome geometry.
             </p>
@@ -101,7 +101,7 @@ export function Index() {
           </Reveal>
 
           {/* Quick Stats Overlay */}
-          <div className="mt-16 grid grid-cols-2 gap-6 sm:grid-cols-4 border-t border-white/15 pt-8 max-w-4xl">
+          <div className="mt-16 grid grid-cols-2 gap-4 sm:gap-6 sm:grid-cols-4 border-t border-white/15 pt-8 max-w-4xl min-w-0">
             <div>
               <p className="display-xl text-3xl sm:text-4xl text-white">03</p>
               <p className="text-[11px] uppercase tracking-widest text-zinc-400 mt-1">
@@ -260,13 +260,13 @@ export function Index() {
           </div>
 
           {/* Active Garment Spotlight */}
-          <div className="grid gap-12 lg:grid-cols-12 items-center border border-white/10 bg-black/80 p-6 sm:p-12">
-            <div className="lg:col-span-6">
-              <div className="relative aspect-[3/4] w-full overflow-hidden border border-white/10 bg-zinc-900">
+          <div className="grid gap-8 lg:gap-12 lg:grid-cols-12 items-center border border-white/10 bg-black/80 p-4 sm:p-8 lg:p-12 min-w-0 w-full">
+            <div className="lg:col-span-6 min-w-0 w-full">
+              <div className="relative aspect-[3/4] max-h-[460px] sm:max-h-[560px] w-full max-w-md mx-auto overflow-hidden border border-white/10 bg-zinc-900 flex items-center justify-center rounded-sm">
                 <img
                   src={activeGarment.images?.[0] || FALLBACK_PRODUCT_IMAGE}
                   alt={activeGarment.name}
-                  className="h-full w-full object-cover"
+                  className="h-full w-full object-cover max-w-full"
                 />
                 <div className="absolute bottom-4 left-4 bg-black/80 backdrop-blur-md px-3 py-1.5 border border-white/15 text-xs font-bold uppercase tracking-widest text-white">
                   0{activeGarmentIndex + 1} // {activeGarment.category}

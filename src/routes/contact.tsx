@@ -124,25 +124,25 @@ function ContactPage() {
   };
 
   return (
-    <div className="bg-black text-white pb-24">
+    <div className="bg-black text-white pb-24 min-w-0 w-full max-w-full overflow-x-clip">
       {/* Header Banner */}
-      <section className="border-b border-white/10 bg-zinc-950 py-16">
-        <div className="mx-auto max-w-[1400px] px-5 sm:px-8 lg:px-12">
+      <section className="border-b border-white/10 bg-zinc-950 py-12 sm:py-16 min-w-0">
+        <div className="mx-auto max-w-[1400px] px-4 sm:px-8 lg:px-12 min-w-0">
           <span className="eyebrow border border-white/20 bg-white/5 px-3 py-1.5 text-white font-bold tracking-[0.2em]">
             CLIENT CONCIERGE
           </span>
-          <h1 className="display-xl mt-4 text-4xl sm:text-6xl text-white">
+          <h1 className="display-xl mt-4 text-3xl sm:text-5xl lg:text-6xl text-white break-words">
             CONTACT DRIPCYCLE<span className="text-red-500">X</span>
           </h1>
-          <p className="mt-3 text-sm text-zinc-400 max-w-xl">
+          <p className="mt-3 text-xs sm:text-sm text-zinc-400 max-w-xl">
             Inquiries regarding the Trinity Drop, size consultations, order dispatches, or tracking.
           </p>
         </div>
       </section>
 
       {/* Main Container */}
-      <div className="mx-auto max-w-[1400px] px-5 py-12 sm:px-8 lg:px-12">
-        <div className="grid gap-12 lg:grid-cols-12">
+      <div className="mx-auto max-w-[1400px] px-4 py-8 sm:px-8 sm:py-12 lg:px-12 min-w-0 w-full max-w-full">
+        <div className="grid gap-8 lg:gap-12 lg:grid-cols-12 min-w-0 w-full">
           {/* Left Column: Contact Details & Info */}
           <div className="lg:col-span-5 space-y-8">
             <div>

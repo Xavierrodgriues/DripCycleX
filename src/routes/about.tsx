@@ -12,9 +12,9 @@ export const Route = createFileRoute("/about")({
 
 function AboutPage() {
   return (
-    <div className="bg-black text-white pb-20">
+    <div className="bg-black text-white pb-20 min-w-0 w-full max-w-full overflow-x-clip">
       {/* Hero Header */}
-      <section className="relative overflow-hidden bg-black py-24 text-white border-b border-white/10">
+      <section className="relative overflow-hidden bg-black py-16 sm:py-24 text-white border-b border-white/10 min-w-0">
         <img
           src={editorial1}
           alt="DRIPCYCLEX Philosophy"
@@ -22,7 +22,7 @@ function AboutPage() {
         />
         <div className="absolute inset-0 bg-gradient-to-r from-black via-black/85 to-transparent" />
 
-        <div className="relative z-10 mx-auto max-w-[1400px] px-5 sm:px-8 lg:px-12">
+        <div className="relative z-10 mx-auto max-w-[1400px] px-4 sm:px-8 lg:px-12 min-w-0">
           <Reveal className="max-w-2xl">
             <div className="inline-flex items-center gap-3 border border-white/20 bg-white/5 px-3.5 py-1.5">
               <DripcycleXLogo className="h-8 w-8 sm:h-10 sm:w-10" />
@@ -30,7 +30,7 @@ function AboutPage() {
                 MANIFESTO · 2026
               </span>
             </div>
-            <h1 className="display-xl mt-6 text-4xl sm:text-7xl text-white leading-[0.9]">
+            <h1 className="display-xl mt-6 text-3xl sm:text-6xl lg:text-7xl text-white leading-[0.9] break-words">
               STREETWEAR CUT WITH INTENT.
             </h1>
             <p className="mt-6 text-base sm:text-lg text-zinc-300 leading-relaxed max-w-xl">

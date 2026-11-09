@@ -8,8 +8,10 @@ import { cn } from "@/lib/utils";
 export function ProductCard({ product, badgeNumber }: { product: Product; badgeNumber?: string }) {
   const { wishlist, toggleWishlist, addToCart } = useShop();
   const wished = wishlist.includes(product.slug);
-  const mainImage = product.images?.[0] || FALLBACK_PRODUCT_IMAGE;
-  const hoverImage = product.images?.[1] || mainImage;
+  const firstColorImage = product.colors?.find((c) => c.image)?.image;
+  const secondColorImage = product.colors?.filter((c) => c.image)?.[1]?.image;
+  const mainImage = product.images?.[0] || firstColorImage || FALLBACK_PRODUCT_IMAGE;
+  const hoverImage = product.images?.[1] || secondColorImage || mainImage;
 
   return (
     <article className="group relative flex flex-col justify-between border border-white/10 bg-zinc-950/70 p-3 sm:p-4 transition-all duration-300 hover:border-white/30 hover:shadow-[0_8px_30px_rgba(0,0,0,0.8)]">

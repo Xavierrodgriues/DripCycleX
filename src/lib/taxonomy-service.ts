@@ -369,11 +369,32 @@ export async function saveProduct(
 
 /**
  * Removes a product locally and synchronously updates cache, then awaits Supabase deletion.
+ * Also permanently purges all uploaded product images from the Supabase Storage bucket.
  */
 export async function deleteProduct(
   productId: string,
 ): Promise<{ success: boolean; list: Product[]; error?: string | undefined }> {
   const current = getCachedProducts();
+  const target = current.find((p) => p.id === productId);
+
+  // Permanently delete associated photos from Supabase Storage bucket 'products'
+  if (target) {
+    const urlsToDelete: string[] = [];
+    if (Array.isArray(target.images)) {
+      urlsToDelete.push(...target.images);
+    }
+    if (Array.isArray(target.colors)) {
+      for (const c of target.colors) {
+        if (c.image) urlsToDelete.push(c.image);
+      }
+    }
+    if (urlsToDelete.length > 0) {
+      deleteProductImagesFromStorage(urlsToDelete).catch((err) =>
+        console.warn("Storage cleanup notice on product delete:", err),
+      );
+    }
+  }
+
   const next = current.filter((p) => p.id !== productId);
 
   if (typeof window !== "undefined") {
@@ -688,6 +709,79 @@ export async function uploadProductImage(
     };
     reader.readAsDataURL(fileToUpload);
   });
+}
+
+/**
+ * Extracts relative storage path inside bucket 'products' from a public Supabase URL or relative path.
+ */
+export function extractStoragePath(publicUrl: string): string | null {
+  if (!publicUrl || typeof publicUrl !== "string") return null;
+  if (publicUrl.startsWith("data:") || publicUrl.startsWith("blob:")) return null;
+
+  // If already relative like "silhouettes/prod-123.webp"
+  if (publicUrl.startsWith("silhouettes/")) return publicUrl;
+
+  try {
+    // Check for standard Supabase Storage pattern /products/<path>
+    const marker = "/products/";
+    const markerIndex = publicUrl.indexOf(marker);
+    if (markerIndex !== -1) {
+      const fullPath = publicUrl.substring(markerIndex + marker.length);
+      const pathBeforeQuery = fullPath.split("?")[0] || fullPath;
+      const cleanPath = pathBeforeQuery.split("#")[0] || pathBeforeQuery;
+      return decodeURIComponent(cleanPath);
+    }
+  } catch {
+    /* fallback regex */
+  }
+
+  const match = publicUrl.match(/products\/(.+?)(?:\?.*)?$/);
+  if (match && match[1]) {
+    return decodeURIComponent(match[1]);
+  }
+
+  return null;
+}
+
+/**
+ * Permanently removes one or multiple product images from the Supabase Storage bucket 'products'.
+ */
+export async function deleteProductImagesFromStorage(publicUrls: string[]): Promise<boolean> {
+  if (!isSupabaseConfigured || !Array.isArray(publicUrls) || publicUrls.length === 0) {
+    return true;
+  }
+
+  const paths = Array.from(
+    new Set(
+      publicUrls
+        .map((u) => extractStoragePath(u))
+        .filter((p): p is string => Boolean(p && p.trim().length > 0)),
+    ),
+  );
+
+  if (paths.length === 0) {
+    return true;
+  }
+
+  try {
+    const { error } = await supabase.storage.from("products").remove(paths);
+    if (error) {
+      console.warn("Supabase storage deletion notice:", error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.warn("Storage deletion exception:", err);
+    return false;
+  }
+}
+
+/**
+ * Permanently deletes a single product image from the Supabase Storage bucket 'products'.
+ */
+export async function deleteProductImageFromStorage(publicUrl: string): Promise<boolean> {
+  if (!publicUrl) return true;
+  return deleteProductImagesFromStorage([publicUrl]);
 }
 
 export async function fetchProducts(): Promise<Product[]> {

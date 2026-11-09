@@ -295,18 +295,18 @@ function ShopPage() {
   );
 
   return (
-    <div className="min-h-screen bg-black text-white pb-20">
+    <div className="min-h-screen bg-black text-white pb-20 min-w-0 w-full max-w-full overflow-x-clip">
       {/* Header Banner */}
-      <div className="border-b border-white/10 bg-zinc-950/70 py-12">
-        <div className="mx-auto max-w-[1400px] px-5 sm:px-8 lg:px-12">
+      <div className="border-b border-white/10 bg-zinc-950/70 py-8 sm:py-12">
+        <div className="mx-auto max-w-[1400px] px-4 sm:px-8 lg:px-12 min-w-0">
           <div className="flex items-center gap-2">
             <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
             <span className="eyebrow text-zinc-400 font-bold">DRIPCYCLEX TRINITY CAPSULE</span>
           </div>
-          <h1 className="display-xl mt-2 text-4xl sm:text-6xl text-white">
+          <h1 className="display-xl mt-2 text-3xl sm:text-5xl lg:text-6xl text-white break-words">
             {selectedCategory ? `${selectedCategory.toUpperCase()} DROP` : "THE 3-PIECE SHOWCASE"}
           </h1>
-          <p className="mt-3 text-sm text-zinc-400 max-w-xl">
+          <p className="mt-3 text-xs sm:text-sm text-zinc-400 max-w-xl">
             A pure architectural study in black & white. Three cornerstone pieces: Heavyweight Cyber
             Tee, Signature Stealth Hoodie, and Tactical Matte Bomber.
           </p>
@@ -314,10 +314,10 @@ function ShopPage() {
       </div>
 
       {/* Main Container */}
-      <div className="mx-auto max-w-[1400px] px-5 py-10 sm:px-8 lg:px-12">
+      <div className="mx-auto max-w-[1400px] px-4 py-8 sm:px-8 sm:py-10 lg:px-12 min-w-0 w-full max-w-full">
         {/* Controls Bar */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-6">
-          <div className="flex items-center gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-6 min-w-0">
+          <div className="flex flex-wrap items-center gap-3 min-w-0">
             {/* Mobile Filter Trigger */}
             <Sheet open={mobileFilterOpen} onOpenChange={setMobileFilterOpen}>
               <SheetTrigger asChild>
@@ -363,7 +363,7 @@ function ShopPage() {
 
         {/* Active Filter Chips */}
         {activeFilterCount > 0 && (
-          <div className="flex flex-wrap items-center gap-2 pt-4">
+          <div className="flex flex-wrap items-center gap-2 pt-4 min-w-0">
             <span className="text-xs text-zinc-500 mr-1">Active filters:</span>
             {selectedCategory && (
               <span className="inline-flex items-center gap-1.5 border border-white/20 bg-white/10 text-white px-3 py-1 text-xs font-semibold uppercase">
@@ -420,16 +420,16 @@ function ShopPage() {
         )}
 
         {/* Content Layout */}
-        <div className="mt-8 grid grid-cols-1 gap-10 lg:grid-cols-[240px_1fr]">
+        <div className="mt-8 grid grid-cols-1 gap-10 lg:grid-cols-[240px_1fr] min-w-0 w-full">
           {/* Desktop Filter Sidebar */}
-          <aside className="hidden lg:block">
+          <aside className="hidden lg:block min-w-0">
             <FilterSidebar />
           </aside>
 
           {/* Product Grid: 3-column layout */}
-          <main>
+          <main className="min-w-0 w-full">
             {filteredProducts.length > 0 ? (
-              <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
+              <div className="grid grid-cols-1 gap-6 sm:gap-8 md:grid-cols-2 lg:grid-cols-3 min-w-0 w-full">
                 {filteredProducts.map((product, idx) => (
                   <ProductCard
                     key={product.id}

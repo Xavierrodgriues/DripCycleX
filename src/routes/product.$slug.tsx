@@ -109,32 +109,62 @@ function ProductDetailsPage() {
     }
   }, [availableSizesForColor, selectedSize]);
 
-  // Active images list for carousel: includes color-specific image if available
+  // Set of all images mapped to any colorway
+  const allColorImages = useMemo(() => {
+    if (!product?.colors) return [];
+    return Array.from(
+      new Set(
+        product.colors
+          .map((c) => c.image)
+          .filter((img): img is string => Boolean(img && img.trim().length > 0)),
+      ),
+    );
+  }, [product]);
+
+  // General gallery shots (images not assigned to a specific colorway)
+  const generalGalleryImages = useMemo(() => {
+    if (!product?.images) return [];
+    return product.images.filter((img) => !allColorImages.includes(img));
+  }, [product, allColorImages]);
+
+  // Active carousel images for the currently selected colorway (Amazon / Flipkart variant model)
   const carouselImages: string[] = useMemo(() => {
     if (!product) return [];
-    const list: string[] = product.images && product.images.length > 0 ? [...product.images] : [];
-    if (activeColorObj?.image && !list.includes(activeColorObj.image)) {
-      list.unshift(activeColorObj.image);
-    }
-    return list;
-  }, [product, activeColorObj]);
 
-  // Handle color selection: dynamically switch carousel to color's image and sync sizes
+    // If active colorway has a dedicated mapped photo, show it first followed by general gallery photos
+    if (activeColorObj?.image) {
+      const list = [activeColorObj.image, ...generalGalleryImages];
+      return Array.from(new Set(list));
+    }
+
+    // If active colorway does not have an attached photo, fallback to general product images
+    if (product.images && product.images.length > 0) {
+      return Array.from(new Set(product.images));
+    }
+
+    // Fallback if other colors have photos
+    if (allColorImages.length > 0) {
+      return allColorImages;
+    }
+
+    return [];
+  }, [product, activeColorObj, generalGalleryImages, allColorImages]);
+
+  // Guard: Ensure selectedImgIndex is always valid for the active carousel
+  useEffect(() => {
+    if (carouselImages.length > 0 && selectedImgIndex >= carouselImages.length) {
+      setSelectedImgIndex(0);
+    }
+  }, [carouselImages.length, selectedImgIndex]);
+
+  // Handle color selection: switch active colorway and immediately show its primary photo (Amazon/Flipkart style)
   const handleSelectColor = (colorName: string) => {
     setSelectedColor(colorName);
+    setSelectedImgIndex(0); // Immediately show primary image for the chosen colorway
+
     const colorObj = product?.colors.find((c) => c.name === colorName);
     if (colorObj) {
-      // 1. If colorway has an attached image, find its slide in carousel and switch immediately
-      if (colorObj.image) {
-        const foundIdx = carouselImages.indexOf(colorObj.image);
-        if (foundIdx !== -1) {
-          setSelectedImgIndex(foundIdx);
-        } else {
-          setSelectedImgIndex(0);
-        }
-      }
-
-      // 2. Adjust selected size if current size isn't available for this colorway
+      // Adjust selected size if current size isn't available for this colorway
       const validSizes =
         colorObj.sizes && colorObj.sizes.length > 0 ? colorObj.sizes : product?.sizes || [];
       if (!validSizes.includes(selectedSize) && validSizes.length > 0 && validSizes[0]) {
@@ -212,37 +242,37 @@ function ProductDetailsPage() {
   };
 
   return (
-    <div className="bg-black text-white pb-24">
+    <div className="bg-black text-white pb-24 w-full min-w-0 max-w-full overflow-x-clip">
       {/* Breadcrumb Navigation */}
-      <div className="border-b border-white/10 bg-zinc-950/60 py-4">
-        <div className="mx-auto flex max-w-[1400px] items-center gap-2 px-5 text-xs text-zinc-400 sm:px-8 lg:px-12">
-          <Link to="/" className="hover:text-white transition-colors">
+      <div className="border-b border-white/10 bg-zinc-950/60 py-3 sm:py-4 min-w-0 w-full">
+        <div className="mx-auto flex max-w-[1400px] flex-wrap items-center gap-1.5 sm:gap-2 px-4 sm:px-8 lg:px-12 text-xs text-zinc-400 min-w-0">
+          <Link to="/" className="hover:text-white transition-colors shrink-0">
             Base
           </Link>
-          <span>/</span>
-          <Link to="/shop" className="hover:text-white transition-colors">
+          <span className="text-zinc-600">/</span>
+          <Link to="/shop" className="hover:text-white transition-colors shrink-0">
             Trinity Drop
           </Link>
-          <span>/</span>
+          <span className="text-zinc-600">/</span>
           <Link
             to="/shop"
             search={{ category: product.category }}
-            className="hover:text-white transition-colors"
+            className="hover:text-white transition-colors shrink-0"
           >
             {product.category}
           </Link>
-          <span>/</span>
-          <span className="font-semibold text-white truncate">{product.name}</span>
+          <span className="text-zinc-600">/</span>
+          <span className="font-semibold text-white truncate max-w-[180px] sm:max-w-none">{product.name}</span>
         </div>
       </div>
 
       {/* Main Product Container */}
-      <div className="mx-auto max-w-[1400px] px-5 py-10 sm:px-8 lg:px-12">
-        <div className="grid gap-12 lg:grid-cols-12">
+      <div className="mx-auto max-w-[1400px] px-4 py-6 sm:px-8 sm:py-10 lg:px-12 w-full min-w-0 max-w-full">
+        <div className="grid gap-8 lg:gap-12 lg:grid-cols-12 min-w-0 w-full max-w-full">
           {/* Left Column: Image Gallery & Carousel */}
-          <div className="lg:col-span-7 space-y-4">
-            {/* Main Carousel Image */}
-            <div className="group relative aspect-[3/4] w-full overflow-hidden bg-zinc-950 border border-white/10">
+          <div className="lg:col-span-7 space-y-4 min-w-0 w-full max-w-full">
+            {/* Main Carousel Image: Fixed Bounds & Aspect Ratio */}
+            <div className="group relative w-full max-w-md sm:max-w-lg lg:max-w-xl mx-auto aspect-[3/4] max-h-[460px] sm:max-h-[580px] lg:max-h-[660px] overflow-hidden bg-zinc-950 border border-white/10 flex items-center justify-center rounded-sm">
               <img
                 src={
                   carouselImages && carouselImages.length > 0
@@ -250,7 +280,7 @@ function ProductDetailsPage() {
                     : FALLBACK_PRODUCT_IMAGE
                 }
                 alt={product.name}
-                className="h-full w-full object-cover transition-all duration-500"
+                className="h-full w-full max-h-full max-w-full object-cover transition-all duration-500"
               />
               <div className="absolute top-4 left-4 flex flex-col gap-2 z-10">
                 <span className="eyebrow bg-white px-2.5 py-1 text-black font-black">
@@ -273,7 +303,7 @@ function ProductDetailsPage() {
                         prev > 0 ? prev - 1 : carouselImages.length - 1,
                       )
                     }
-                    className="absolute left-3 top-1/2 -translate-y-1/2 h-10 w-10 flex items-center justify-center bg-black/70 hover:bg-white hover:text-black text-white border border-white/20 transition-all rounded-full z-20 opacity-0 group-hover:opacity-100 focus:opacity-100"
+                    className="absolute left-3 top-1/2 -translate-y-1/2 h-10 w-10 flex items-center justify-center bg-black/70 hover:bg-white hover:text-black text-white border border-white/20 transition-all rounded-full z-20 opacity-90 sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100 shadow-lg"
                     title="Previous photo"
                   >
                     <ChevronLeft className="h-5 w-5" />
@@ -285,7 +315,7 @@ function ProductDetailsPage() {
                         prev < carouselImages.length - 1 ? prev + 1 : 0,
                       )
                     }
-                    className="absolute right-3 top-1/2 -translate-y-1/2 h-10 w-10 flex items-center justify-center bg-black/70 hover:bg-white hover:text-black text-white border border-white/20 transition-all rounded-full z-20 opacity-0 group-hover:opacity-100 focus:opacity-100"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 h-10 w-10 flex items-center justify-center bg-black/70 hover:bg-white hover:text-black text-white border border-white/20 transition-all rounded-full z-20 opacity-90 sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100 shadow-lg"
                     title="Next photo"
                   >
                     <ChevronRight className="h-5 w-5" />
@@ -307,33 +337,42 @@ function ProductDetailsPage() {
 
             {/* Thumbnail Selection */}
             {carouselImages && carouselImages.length > 1 && (
-              <div className="flex gap-3 overflow-x-auto pb-2">
-                {carouselImages.map((img: string, idx: number) => (
-                  <button
-                    key={idx}
-                    onClick={() => setSelectedImgIndex(idx)}
-                    className={cn(
-                      "relative aspect-[3/4] w-20 shrink-0 overflow-hidden border bg-zinc-950 transition-all rounded-sm",
-                      selectedImgIndex === idx
-                        ? "border-white ring-2 ring-white/30"
-                        : "border-white/15 opacity-60 hover:opacity-100",
-                    )}
-                  >
-                    <img src={img} alt="" className="h-full w-full object-cover" />
-                  </button>
-                ))}
+              <div className="flex gap-2 sm:gap-3 overflow-x-auto pb-2 max-w-full w-full justify-start sm:justify-center">
+                {carouselImages.map((img: string, idx: number) => {
+                  const isColorImage = activeColorObj?.image === img;
+                  return (
+                    <button
+                      key={`${img}-${idx}`}
+                      type="button"
+                      onClick={() => setSelectedImgIndex(idx)}
+                      className={cn(
+                        "relative aspect-[3/4] w-14 sm:w-20 shrink-0 overflow-hidden border bg-zinc-950 transition-all rounded-sm",
+                        selectedImgIndex === idx
+                          ? "border-white ring-2 ring-white/30"
+                          : "border-white/15 opacity-60 hover:opacity-100",
+                      )}
+                    >
+                      <img src={img} alt="" className="h-full w-full object-cover max-w-full" />
+                      {isColorImage && (
+                        <span className="absolute bottom-0 inset-x-0 bg-black/85 text-[8px] font-mono text-center text-white py-0.5 truncate px-0.5">
+                          {activeColorObj?.name}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>
 
           {/* Right Column: Product Information & Controls */}
-          <div className="lg:col-span-5 flex flex-col space-y-6">
+          <div className="lg:col-span-5 flex flex-col space-y-6 min-w-0 w-full max-w-full">
             <div>
               <div className="flex items-center gap-2">
                 <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
                 <span className="eyebrow text-zinc-400 font-bold">{product.category}</span>
               </div>
-              <h1 className="display-xl mt-2 text-3xl sm:text-4xl text-white">{product.name}</h1>
+              <h1 className="display-xl mt-2 text-2xl sm:text-3xl lg:text-4xl text-white break-words">{product.name}</h1>
 
               {/* Rating & Reviews */}
               <div className="mt-3 flex items-center gap-3">
@@ -357,7 +396,7 @@ function ProductDetailsPage() {
               </div>
 
               {/* Price Display */}
-              <div className="mt-4 flex items-baseline gap-3">
+              <div className="mt-4 flex flex-wrap items-baseline gap-2 sm:gap-3">
                 <span className="text-2xl sm:text-3xl font-black text-white">
                   {formatPrice(product.price)}
                 </span>
@@ -386,7 +425,7 @@ function ProductDetailsPage() {
                   </span>
                 )}
               </div>
-              <div className="flex flex-wrap gap-3">
+              <div className="flex flex-wrap gap-2 sm:gap-2.5">
                 {product.colors.map((color) => {
                   const isSelected = selectedColor === color.name;
                   return (
@@ -395,7 +434,7 @@ function ProductDetailsPage() {
                       type="button"
                       onClick={() => handleSelectColor(color.name)}
                       className={cn(
-                        "group relative flex items-center gap-2 border px-3.5 py-2 text-xs font-bold uppercase transition-all",
+                        "group relative flex items-center gap-2 border px-3 py-2 text-xs font-bold uppercase transition-all shrink-0",
                         isSelected
                           ? "border-white bg-white/10 text-white shadow-[0_0_15px_rgba(255,255,255,0.15)]"
                           : "border-white/15 text-zinc-400 hover:border-white/40 hover:text-white",
@@ -503,7 +542,7 @@ function ProductDetailsPage() {
                 </Dialog>
               </div>
 
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2 max-w-full">
                 {product.sizes.map((sz) => {
                   const isAvailable = availableSizesForColor.includes(sz);
                   const isSelected = selectedSize === sz;
@@ -519,7 +558,7 @@ function ProductDetailsPage() {
                           : `Size ${sz} currently unavailable in ${selectedColor}`
                       }
                       className={cn(
-                        "relative min-w-[54px] px-4 py-3 text-xs font-black uppercase tracking-wider border transition-all text-center",
+                        "relative min-w-[48px] sm:min-w-[54px] px-3 sm:px-4 py-2.5 sm:py-3 text-xs font-black uppercase tracking-wider border transition-all text-center shrink-0",
                         isSelected && isAvailable
                           ? "border-white bg-white text-black shadow-lg"
                           : isAvailable
@@ -557,78 +596,80 @@ function ProductDetailsPage() {
             </div>
 
             {/* Primary Actions */}
-            <div className="flex gap-3 pt-2">
+            <div className="flex flex-col sm:flex-row gap-3 pt-2 w-full">
               <button
                 onClick={handleAddToCart}
-                className="flex-1 inline-flex items-center justify-center gap-2 border border-white bg-white py-4 text-xs font-black uppercase tracking-[0.2em] text-black shadow-md transition-all hover:bg-zinc-200"
+                className="flex-1 inline-flex items-center justify-center gap-2 border border-white bg-white py-3.5 sm:py-4 text-xs font-black uppercase tracking-[0.18em] sm:tracking-[0.2em] text-black shadow-md transition-all hover:bg-zinc-200 active:scale-[0.99]"
               >
-                <ShoppingBag className="h-4 w-4" /> Add to Bag
+                <ShoppingBag className="h-4 w-4 shrink-0" /> Add to Bag
               </button>
 
-              <button
-                onClick={() => {
-                  toggleWishlist(product.slug);
-                  toast(wished ? "Removed from archive" : "Saved to archive");
-                }}
-                aria-label="Wishlist"
-                className="grid h-13 w-13 shrink-0 place-items-center border border-white/20 bg-black text-white transition-colors hover:border-white"
-              >
-                <Heart className={cn("h-5 w-5", wished && "fill-red-500 text-red-500")} />
-              </button>
+              <div className="flex gap-3 justify-center sm:justify-start">
+                <button
+                  onClick={() => {
+                    toggleWishlist(product.slug);
+                    toast(wished ? "Removed from archive" : "Saved to archive");
+                  }}
+                  aria-label="Wishlist"
+                  className="flex-1 sm:flex-none grid h-12 w-12 sm:h-13 sm:w-13 place-items-center border border-white/20 bg-black text-white transition-colors hover:border-white"
+                >
+                  <Heart className={cn("h-5 w-5", wished && "fill-red-500 text-red-500")} />
+                </button>
 
-              <button
-                onClick={handleShare}
-                aria-label="Share"
-                className="grid h-13 w-13 shrink-0 place-items-center border border-white/20 bg-black text-white transition-colors hover:border-white"
-              >
-                <Share2 className="h-5 w-5" />
-              </button>
+                <button
+                  onClick={handleShare}
+                  aria-label="Share"
+                  className="flex-1 sm:flex-none grid h-12 w-12 sm:h-13 sm:w-13 place-items-center border border-white/20 bg-black text-white transition-colors hover:border-white"
+                >
+                  <Share2 className="h-5 w-5" />
+                </button>
+              </div>
             </div>
 
             {/* Direct Online Dispatch Banner */}
-            <div className="border border-white/10 bg-zinc-950 p-4 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <Truck className="h-5 w-5 text-white shrink-0" />
-                <div>
+            <div className="border border-white/10 bg-zinc-950 p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 min-w-0">
+              <div className="flex items-start sm:items-center gap-3 min-w-0">
+                <Truck className="h-5 w-5 text-white shrink-0 mt-0.5 sm:mt-0" />
+                <div className="min-w-0">
                   <h4 className="text-xs font-bold uppercase tracking-wider text-white">
                     Direct-To-Consumer Dispatch
                   </h4>
-                  <p className="text-xs text-zinc-400">
+                  <p className="text-xs text-zinc-400 mt-0.5 leading-relaxed">
                     Delivered within 8 working days · Low delivery fee pan-India
                   </p>
                 </div>
               </div>
               <Link
                 to="/contact"
-                className="text-xs font-bold uppercase tracking-wider text-white hover:underline shrink-0 ml-2"
+                className="text-xs font-bold uppercase tracking-wider text-white hover:underline shrink-0"
               >
-                Fit Assistance
+                Fit Assistance →
               </Link>
             </div>
 
             {/* Guarantees List */}
-            <div className="space-y-2 text-xs text-zinc-400 pt-2">
-              <div className="flex items-center gap-2">
-                <Truck className="h-4 w-4 text-white" />
-                <span>Pan-India delivery in 8 working days · Low delivery fee</span>
+            <div className="space-y-2 text-xs text-zinc-400 pt-2 min-w-0">
+              <div className="flex items-start sm:items-center gap-2 min-w-0">
+                <Truck className="h-4 w-4 text-white shrink-0 mt-0.5 sm:mt-0" />
+                <span className="leading-relaxed">Pan-India delivery in 8 working days · Low delivery fee</span>
               </div>
-              <div className="flex items-center gap-2">
-                <ShieldCheck className="h-4 w-4 text-white" />
-                <span>7-Day exchange if error from our side (size mismatch/defect) · No doorstep pickup</span>
+              <div className="flex items-start sm:items-center gap-2 min-w-0">
+                <ShieldCheck className="h-4 w-4 text-white shrink-0 mt-0.5 sm:mt-0" />
+                <span className="leading-relaxed">7-Day exchange if error from our side (size mismatch/defect) · No doorstep pickup</span>
               </div>
             </div>
 
             <hr className="border-white/10" />
 
             {/* Accordion / Tabs: Description, Fabric & Care */}
-            <div>
-              <div className="flex border-b border-white/10">
+            <div className="min-w-0 w-full">
+              <div className="flex border-b border-white/10 overflow-x-auto min-w-0">
                 {(["description", "fabric", "care"] as const).map((tab) => (
                   <button
                     key={tab}
                     onClick={() => setActiveTab(tab)}
                     className={cn(
-                      "py-3 px-4 text-xs font-bold uppercase tracking-wider border-b-2 transition-colors -mb-px",
+                      "py-3 px-3.5 sm:px-4 text-xs font-bold uppercase tracking-wider border-b-2 transition-colors -mb-px shrink-0",
                       activeTab === tab
                         ? "border-white text-white"
                         : "border-transparent text-zinc-500 hover:text-zinc-300",
@@ -639,7 +680,7 @@ function ProductDetailsPage() {
                 ))}
               </div>
 
-              <div className="py-4 text-sm text-zinc-300 leading-relaxed">
+              <div className="py-4 text-sm text-zinc-300 leading-relaxed min-w-0 break-words">
                 {activeTab === "description" && <p>{product.description}</p>}
 
                 {activeTab === "fabric" && (
@@ -668,8 +709,8 @@ function ProductDetailsPage() {
 
         {/* Complete the Trinity Capsule (The Other 2 Pieces) */}
         {otherTrinityPieces.length > 0 && (
-          <div className="mt-24 border-t border-white/10 pt-16">
-            <div className="flex items-end justify-between mb-8">
+          <div className="mt-24 border-t border-white/10 pt-16 min-w-0 w-full">
+            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8">
               <div>
                 <span className="eyebrow text-zinc-400 font-bold">COMPLETE THE CAPSULE</span>
                 <h2 className="display-xl mt-1 text-2xl sm:text-4xl text-white">
@@ -678,12 +719,12 @@ function ProductDetailsPage() {
               </div>
               <Link
                 to="/shop"
-                className="text-xs font-bold uppercase tracking-wider text-white hover:underline"
+                className="text-xs font-bold uppercase tracking-wider text-white hover:underline shrink-0"
               >
                 View Full Drop →
               </Link>
             </div>
-            <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-6 sm:gap-8 md:grid-cols-2 min-w-0 w-full">
               {otherTrinityPieces.map((p, idx) => (
                 <ProductCard key={p.id} product={p} badgeNumber={`0${idx + 1} / 02 OTHER`} />
               ))}

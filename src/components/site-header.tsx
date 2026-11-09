@@ -94,7 +94,7 @@ export function SiteHeader() {
 
   return (
     <>
-      <div className="bg-black border-b border-white/10 py-2 text-center text-[11px] font-bold tracking-[0.25em] text-zinc-400 uppercase">
+      <div className="bg-black border-b border-white/10 py-2 text-center text-[10px] sm:text-[11px] font-bold tracking-[0.16em] sm:tracking-[0.25em] text-zinc-400 uppercase px-3 truncate">
         TRINITY DROP 01 · 8 WORKING DAYS DELIVERY · LOW DELIVERY FEE ·{" "}
         <span className="text-white">STRICTLY LIMITED PIECES</span>
       </div>

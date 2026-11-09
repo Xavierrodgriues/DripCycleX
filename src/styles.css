@@ -96,6 +96,14 @@
 @layer base {
   * {
     border-color: var(--color-border);
+    box-sizing: border-box;
+  }
+
+  html {
+    overflow-x: hidden;
+    max-width: 100vw;
+    width: 100%;
+    -webkit-text-size-adjust: 100%;
   }
 
   body {
@@ -104,6 +112,16 @@
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     color-scheme: dark;
+    overflow-x: hidden;
+    max-width: 100vw;
+    width: 100%;
+    position: relative;
+  }
+
+  img,
+  video {
+    max-width: 100%;
+    height: auto;
   }
 
   h1,
