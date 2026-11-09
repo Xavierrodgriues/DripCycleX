@@ -99,7 +99,7 @@ export function ProductCard({ product, badgeNumber }: { product: Product; badgeN
           type="button"
           aria-label={`Add ${product.name} to bag`}
           onClick={() => {
-            addToCart({
+            const added = addToCart({
               slug: product.slug,
               name: product.name,
               price: product.price,
@@ -108,7 +108,9 @@ export function ProductCard({ product, badgeNumber }: { product: Product; badgeN
               color: product.colors[0]?.name ?? "",
               qty: 1,
             });
-            toast.success("Added to Bag", { description: product.name });
+            if (added) {
+              toast.success("Added to Bag", { description: product.name });
+            }
           }}
           className="inline-flex items-center gap-1.5 border border-white/20 bg-white/5 px-3 py-2 text-xs font-bold uppercase tracking-wider text-white transition-all hover:border-white hover:bg-white hover:text-black"
         >

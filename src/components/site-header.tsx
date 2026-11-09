@@ -27,6 +27,7 @@ import { useShop } from "@/lib/shop-store";
 import { useAuth } from "@/lib/auth-store";
 import { initiateWhatsAppCheckout } from "@/lib/whatsapp";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 const NAV = [
   { label: "Trinity Drop", to: "/shop" as const },
@@ -40,6 +41,7 @@ const NAV = [
 export function SiteHeader() {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [cartOpen, setCartOpen] = useState(false);
   const [query, setQuery] = useState("");
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -59,6 +61,25 @@ export function SiteHeader() {
     ? products.filter((p) => p.name.toLowerCase().includes(query.trim().toLowerCase()))
     : [];
   const wishedProducts = products.filter((p) => wishlist.includes(p.slug));
+
+  const handleProceedToCheckout = () => {
+    if (cart.length === 0) return;
+
+    if (!currentUser) {
+      setCartOpen(false);
+      toast.info("Account Required", {
+        description: "Please sign in or create an account to proceed to checkout.",
+      });
+      navigate({ to: "/auth" });
+      return;
+    }
+
+    initiateWhatsAppCheckout(cart, cartTotal, {
+      name: currentUser.name,
+      phone: currentUser.phone,
+      address: `${currentUser.address}, ${currentUser.city} - ${currentUser.zipCode}`,
+    });
+  };
 
   return (
     <>
@@ -226,7 +247,7 @@ export function SiteHeader() {
             </Sheet>
 
             {/* Cart Drawer */}
-            <Sheet>
+            <Sheet open={cartOpen} onOpenChange={setCartOpen}>
               <SheetTrigger
                 aria-label="Cart"
                 className="relative grid h-10 w-10 place-items-center text-zinc-300 transition-colors hover:text-white hover:bg-white/5 rounded-md"
@@ -305,23 +326,11 @@ export function SiteHeader() {
                     <span className="text-xl font-black text-white">{formatPrice(cartTotal)}</span>
                   </div>
                   <button
-                    onClick={() =>
-                      initiateWhatsAppCheckout(
-                        cart,
-                        cartTotal,
-                        currentUser
-                          ? {
-                              name: currentUser.name,
-                              phone: currentUser.phone,
-                              address: `${currentUser.address}, ${currentUser.city} - ${currentUser.zipCode}`,
-                            }
-                          : undefined,
-                      )
-                    }
+                    onClick={handleProceedToCheckout}
                     disabled={cart.length === 0}
                     className="mt-4 flex w-full items-center justify-center gap-2 bg-white py-3.5 text-xs font-black tracking-[0.2em] text-black uppercase transition-colors hover:bg-zinc-200 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Proceed to WhatsApp Checkout
+                    Proceed to Checkout
                   </button>
                 </div>
               </SheetContent>

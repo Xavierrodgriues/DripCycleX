@@ -69,7 +69,7 @@ function ProductDetailsPage() {
   const otherTrinityPieces = products.filter((p) => p.id !== product.id);
 
   const handleAddToCart = () => {
-    addToCart({
+    const added = addToCart({
       slug: product.slug,
       name: product.name,
       price: product.price,
@@ -78,9 +78,11 @@ function ProductDetailsPage() {
       color: selectedColor,
       qty: quantity,
     });
-    toast.success("Added to Bag", {
-      description: `${product.name} (${selectedColor}, Size ${selectedSize})`,
-    });
+    if (added) {
+      toast.success("Added to Bag", {
+        description: `${product.name} (${selectedColor}, Size ${selectedSize})`,
+      });
+    }
   };
 
   const handleShare = () => {
