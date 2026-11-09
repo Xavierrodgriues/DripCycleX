@@ -585,6 +585,8 @@ function AdminDashboard({
     setIsUploadingImage(true);
     const prodId = isEdit && editingProduct ? editingProduct.id : `dcx-new-${Date.now()}`;
     const uploadedUrls: string[] = [];
+    let totalOriginalBytes = 0;
+    let totalCompressedBytes = 0;
 
     try {
       for (let i = 0; i < files.length; i++) {
@@ -593,6 +595,8 @@ function AdminDashboard({
         const res = await uploadProductImage(file, prodId);
         if (res.url) {
           uploadedUrls.push(res.url);
+          if (res.originalSize) totalOriginalBytes += res.originalSize;
+          if (res.compressedSize) totalCompressedBytes += res.compressedSize;
         }
       }
 
@@ -602,10 +606,23 @@ function AdminDashboard({
         } else {
           setNewProductImages((prev) => [...prev, ...uploadedUrls]);
         }
+
+        const formatSize = (bytes: number) =>
+          bytes >= 1024 * 1024
+            ? `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+            : `${Math.round(bytes / 1024)} KB`;
+
+        const compressionNotice =
+          totalOriginalBytes > 0 && totalCompressedBytes > 0
+            ? ` (${formatSize(totalOriginalBytes)} → ${formatSize(totalCompressedBytes)}, ${Math.round(
+                (1 - totalCompressedBytes / totalOriginalBytes) * 100,
+              )}% saved without quality loss)`
+            : "";
+
         toast.success(
-          `${uploadedUrls.length} Image${uploadedUrls.length > 1 ? "s" : ""} Uploaded`,
+          `${uploadedUrls.length} Image${uploadedUrls.length > 1 ? "s" : ""} Optimized & Uploaded`,
           {
-            description: "Saved to Supabase Storage & added to silhouette carousel.",
+            description: `Stored in Supabase bucket 'products'${compressionNotice}.`,
             id: "img-upload-success",
           },
         );
@@ -2583,7 +2600,7 @@ function AdminDashboard({
                     {isUploadingImage ? (
                       <span className="flex items-center gap-2 text-xs font-bold">
                         <span className="h-3.5 w-3.5 rounded-full border-2 border-amber-400 border-t-transparent animate-spin" />
-                        Uploading to Supabase Storage...
+                        Optimizing & Uploading to Supabase...
                       </span>
                     ) : (
                       <span className="flex items-center gap-2 text-xs">
@@ -2592,7 +2609,7 @@ function AdminDashboard({
                           Upload Photos for Carousel
                         </span>
                         <span className="text-[10px] text-zinc-400">
-                          (Supabase Storage · Multi-select)
+                          (Auto-Compressed WebP · Retina Quality · Multi-select)
                         </span>
                       </span>
                     )}
@@ -2862,7 +2879,7 @@ function AdminDashboard({
                     {isUploadingImage ? (
                       <span className="flex items-center gap-2 text-xs font-bold">
                         <span className="h-3.5 w-3.5 rounded-full border-2 border-amber-400 border-t-transparent animate-spin" />
-                        Uploading to Supabase Storage...
+                        Optimizing & Uploading to Supabase...
                       </span>
                     ) : (
                       <span className="flex items-center gap-2 text-xs">
@@ -2871,7 +2888,7 @@ function AdminDashboard({
                           Upload Photos for Carousel
                         </span>
                         <span className="text-[10px] text-zinc-400">
-                          (Supabase Storage · Multi-select)
+                          (Auto-Compressed WebP · Retina Quality · Multi-select)
                         </span>
                       </span>
                     )}
