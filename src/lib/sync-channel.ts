@@ -12,12 +12,15 @@ export type SyncEventType =
   | "WISHLIST_UPDATED"
   | "USER_REGISTERED"
   | "PRODUCTS_UPDATED"
+  | "CATEGORIES_UPDATED"
+  | "SIZES_UPDATED"
   | "CREDENTIALS_UPDATED";
 
 export interface SyncPayload {
   type: SyncEventType;
   timestamp: number;
   data?: unknown;
+  isLocal?: boolean;
 }
 
 const CHANNEL_NAME = "dripcyclex_realtime_stream";
@@ -56,15 +59,19 @@ export function broadcastSync(type: SyncEventType, data?: unknown) {
   const ch = getBroadcastChannel();
   if (ch) {
     try {
-      ch.postMessage(payload);
+      ch.postMessage({ ...payload, isLocal: false });
     } catch {
       /* ignore */
     }
   }
 
-  // 2. In-tab communication via CustomEvent
+  // 2. In-tab communication via CustomEvent (for instant local reactivity)
   try {
-    window.dispatchEvent(new CustomEvent(LOCAL_EVENT_NAME, { detail: payload }));
+    window.dispatchEvent(
+      new CustomEvent(LOCAL_EVENT_NAME, {
+        detail: { ...payload, isLocal: true },
+      }),
+    );
   } catch {
     /* ignore */
   }

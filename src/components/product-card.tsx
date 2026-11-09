@@ -1,13 +1,15 @@
 import { Link } from "@tanstack/react-router";
 import { Heart, ShoppingBag } from "lucide-react";
 import { toast } from "sonner";
-import { formatPrice, type Product } from "@/data/products";
+import { formatPrice, FALLBACK_PRODUCT_IMAGE, type Product } from "@/data/products";
 import { useShop } from "@/lib/shop-store";
 import { cn } from "@/lib/utils";
 
 export function ProductCard({ product, badgeNumber }: { product: Product; badgeNumber?: string }) {
   const { wishlist, toggleWishlist, addToCart } = useShop();
   const wished = wishlist.includes(product.slug);
+  const mainImage = product.images?.[0] || FALLBACK_PRODUCT_IMAGE;
+  const hoverImage = product.images?.[1] || mainImage;
 
   return (
     <article className="group relative flex flex-col justify-between border border-white/10 bg-zinc-950/70 p-3 sm:p-4 transition-all duration-300 hover:border-white/30 hover:shadow-[0_8px_30px_rgba(0,0,0,0.8)]">
@@ -19,7 +21,7 @@ export function ProductCard({ product, badgeNumber }: { product: Product; badgeN
         >
           <div className="relative aspect-[3/4] w-full overflow-hidden">
             <img
-              src={product.images[0]}
+              src={mainImage}
               alt={product.name}
               loading="lazy"
               width={900}
@@ -27,7 +29,7 @@ export function ProductCard({ product, badgeNumber }: { product: Product; badgeN
               className="absolute inset-0 h-full w-full object-cover transition-all duration-700 ease-out group-hover:scale-105 group-hover:opacity-0"
             />
             <img
-              src={product.images[1] ?? product.images[0]}
+              src={hoverImage}
               alt={`${product.name} alternate angle`}
               loading="lazy"
               width={900}

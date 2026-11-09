@@ -1,0 +1,482 @@
+/**
+ * DRIPCYCLEX Taxonomy & Fit Standards Service
+ *
+ * Synchronizes categories and size standards between Supabase database tables
+ * and client localStorage with real-time cross-tab synchronization.
+ */
+
+import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import {
+  DEFAULT_CATEGORIES,
+  DEFAULT_SIZES,
+  products as initialProducts,
+  type CategoryItem,
+  type SizeItem,
+  type Product,
+} from "@/data/products";
+import { broadcastSync } from "@/lib/sync-channel";
+
+export const CATEGORIES_STORAGE_KEY = "dripcyclex.admin.categories";
+export const SIZES_STORAGE_KEY = "dripcyclex.admin.sizes";
+export const PRODUCTS_STORAGE_KEY = "dripcyclex.admin.products";
+
+export function getCachedProducts(): Product[] {
+  if (typeof window === "undefined") return initialProducts;
+  try {
+    const raw = localStorage.getItem(PRODUCTS_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch {
+    /* fallback */
+  }
+  return initialProducts;
+}
+
+export function getCachedCategories(): CategoryItem[] {
+  if (typeof window === "undefined") return DEFAULT_CATEGORIES;
+  try {
+    const raw = localStorage.getItem(CATEGORIES_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch {
+    /* fallback */
+  }
+  return DEFAULT_CATEGORIES;
+}
+
+export function getCachedSizes(): SizeItem[] {
+  if (typeof window === "undefined") return DEFAULT_SIZES;
+  try {
+    const raw = localStorage.getItem(SIZES_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch {
+    /* fallback */
+  }
+  return DEFAULT_SIZES;
+}
+
+export async function fetchCategories(): Promise<CategoryItem[]> {
+  if (!isSupabaseConfigured || typeof window === "undefined") {
+    return getCachedCategories();
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from("categories")
+      .select("*")
+      .order("display_order", { ascending: true });
+
+    if (error) {
+      console.warn("Supabase categories fetch notice:", error.message);
+      return getCachedCategories();
+    }
+
+    if (data && data.length > 0) {
+      const mapped: CategoryItem[] = data.map((row) => ({
+        id: row.id,
+        slug: row.slug,
+        name: row.name,
+        description: row.description || "",
+        display_order: row.display_order ?? 0,
+        is_active: row.is_active ?? true,
+      }));
+
+      try {
+        localStorage.setItem(CATEGORIES_STORAGE_KEY, JSON.stringify(mapped));
+      } catch {
+        /* ignore */
+      }
+      return mapped;
+    }
+  } catch (err) {
+    console.warn("Categories fetch error fallback:", err);
+  }
+
+  return getCachedCategories();
+}
+
+export async function fetchSizes(): Promise<SizeItem[]> {
+  if (!isSupabaseConfigured || typeof window === "undefined") {
+    return getCachedSizes();
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from("sizes")
+      .select("*")
+      .order("display_order", { ascending: true });
+
+    if (error) {
+      console.warn("Supabase sizes fetch notice:", error.message);
+      return getCachedSizes();
+    }
+
+    if (data && data.length > 0) {
+      const mapped: SizeItem[] = data.map((row) => ({
+        id: row.id,
+        code: row.code,
+        name: row.name,
+        display_order: row.display_order ?? 0,
+        is_active: row.is_active ?? true,
+      }));
+
+      try {
+        localStorage.setItem(SIZES_STORAGE_KEY, JSON.stringify(mapped));
+      } catch {
+        /* ignore */
+      }
+      return mapped;
+    }
+  } catch (err) {
+    console.warn("Sizes fetch error fallback:", err);
+  }
+
+  return getCachedSizes();
+}
+
+export async function saveCategoryToSupabase(category: CategoryItem): Promise<boolean> {
+  if (!isSupabaseConfigured) return true;
+  try {
+    const payload = {
+      slug: category.slug,
+      name: category.name,
+      description: category.description || "",
+      display_order: category.display_order ?? 0,
+      is_active: category.is_active ?? true,
+      updated_at: new Date().toISOString(),
+    };
+
+    const { error } = await supabase
+      .from("categories")
+      .upsert(payload, { onConflict: "slug" });
+
+    if (error) {
+      console.warn("Supabase category save notice:", error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.warn("Category save exception:", err);
+    return false;
+  }
+}
+
+export async function deleteCategoryFromSupabase(slug: string): Promise<boolean> {
+  if (!isSupabaseConfigured) return true;
+  try {
+    const { error } = await supabase.from("categories").delete().eq("slug", slug);
+    if (error) {
+      console.warn("Supabase category delete notice:", error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.warn("Category delete exception:", err);
+    return false;
+  }
+}
+
+export async function saveSizeToSupabase(size: SizeItem): Promise<boolean> {
+  if (!isSupabaseConfigured) return true;
+  try {
+    const payload = {
+      code: size.code,
+      name: size.name,
+      display_order: size.display_order ?? 0,
+      is_active: size.is_active ?? true,
+      updated_at: new Date().toISOString(),
+    };
+
+    const { error } = await supabase
+      .from("sizes")
+      .upsert(payload, { onConflict: "code" });
+
+    if (error) {
+      console.warn("Supabase size save notice:", error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.warn("Size save exception:", err);
+    return false;
+  }
+}
+
+export async function deleteSizeFromSupabase(code: string): Promise<boolean> {
+  if (!isSupabaseConfigured) return true;
+  try {
+    const { error } = await supabase.from("sizes").delete().eq("code", code);
+    if (error) {
+      console.warn("Supabase size delete notice:", error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.warn("Size delete exception:", err);
+    return false;
+  }
+}
+
+export async function syncProductToSupabase(product: Product): Promise<boolean> {
+  if (!isSupabaseConfigured) return true;
+  try {
+    // Look up category slug
+    const categorySlug = product.category.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+
+    const payload = {
+      id: product.id,
+      slug: product.slug,
+      name: product.name,
+      category_slug: categorySlug,
+      price: product.price,
+      compare_at_price: product.compareAtPrice || null,
+      rating: product.rating,
+      reviews_count: product.reviews,
+      images: product.images,
+      sizes: product.sizes,
+      description: product.description,
+      fabric: product.fabric,
+      care: product.care,
+      badges: product.badges || [],
+      is_new: product.isNew ?? false,
+      is_bestseller: product.isBestSeller ?? false,
+      is_active: true,
+      updated_at: new Date().toISOString(),
+    };
+
+    const { error } = await supabase.from("products").upsert(payload, { onConflict: "id" });
+    if (error) {
+      console.warn("Supabase product upsert notice:", error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.warn("Product sync exception:", err);
+    return false;
+  }
+}
+
+export async function deleteProductFromSupabase(productId: string): Promise<boolean> {
+  if (!isSupabaseConfigured) return true;
+  try {
+    const { error } = await supabase.from("products").delete().eq("id", productId);
+    if (error) {
+      console.warn("Supabase product delete notice:", error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.warn("Product delete exception:", err);
+    return false;
+  }
+}
+
+/**
+ * Synchronously saves a product to local storage, stamps an updatedAt timestamp,
+ * broadcasts the change across tabs/components, and persists asynchronously to Supabase.
+ */
+export function saveProductLocally(product: Product): Product[] {
+  const current = getCachedProducts();
+  const exists = current.some((p) => p.id === product.id);
+  const stampedProduct: Product = {
+    ...product,
+    updatedAt: new Date().toISOString(),
+  };
+
+  const next = exists
+    ? current.map((p) => (p.id === product.id ? stampedProduct : p))
+    : [...current, stampedProduct];
+
+  if (typeof window !== "undefined") {
+    try {
+      localStorage.setItem(PRODUCTS_STORAGE_KEY, JSON.stringify(next));
+    } catch (err) {
+      console.warn("Failed saving product to localStorage:", err);
+    }
+  }
+
+  broadcastSync("PRODUCTS_UPDATED", stampedProduct);
+  void syncProductToSupabase(stampedProduct);
+
+  return next;
+}
+
+/**
+ * Synchronously removes a product from local storage,
+ * broadcasts the change across tabs/components, and deletes asynchronously from Supabase.
+ */
+export function deleteProductLocally(productId: string): Product[] {
+  const current = getCachedProducts();
+  const next = current.filter((p) => p.id !== productId);
+
+  if (typeof window !== "undefined") {
+    try {
+      localStorage.setItem(PRODUCTS_STORAGE_KEY, JSON.stringify(next));
+    } catch (err) {
+      console.warn("Failed deleting product from localStorage:", err);
+    }
+  }
+
+  broadcastSync("PRODUCTS_UPDATED", { id: productId });
+  void deleteProductFromSupabase(productId);
+
+  return next;
+}
+
+/**
+ * Uploads a silhouette image file to Supabase Storage bucket 'products'
+ * and returns the public CDN URL.
+ * Automatically falls back to base64 Data URL if Supabase Storage
+ * bucket is not configured yet, ensuring the admin is never blocked.
+ */
+export async function uploadProductImage(
+  file: File,
+  productId: string,
+): Promise<{ url: string; error?: string }> {
+  const fileExt = file.name.split(".").pop() || "jpg";
+  const cleanExt = fileExt.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const fileName = `${productId}-${Date.now()}-${Math.random().toString(36).substring(2, 7)}.${cleanExt}`;
+  const filePath = `silhouettes/${fileName}`;
+
+  // 1. Attempt upload to Supabase Storage bucket 'products'
+  if (isSupabaseConfigured) {
+    try {
+      const { data, error } = await supabase.storage
+        .from("products")
+        .upload(filePath, file, {
+          cacheControl: "3600",
+          upsert: true,
+          contentType: file.type || "image/jpeg",
+        });
+
+      if (!error && data) {
+        const { data: publicData } = supabase.storage
+          .from("products")
+          .getPublicUrl(filePath);
+
+        if (publicData?.publicUrl) {
+          return { url: publicData.publicUrl };
+        }
+      } else if (error) {
+        console.warn("Supabase storage upload notice:", error.message);
+      }
+    } catch (err) {
+      console.warn("Storage upload exception, falling back to data URL:", err);
+    }
+  }
+
+  // 2. Fallback to base64 Data URL so upload never fails if storage bucket is not configured yet
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      resolve({ url: reader.result as string });
+    };
+    reader.onerror = () => {
+      resolve({ url: "", error: "Failed to read image file" });
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+export async function fetchProducts(): Promise<Product[]> {
+  if (!isSupabaseConfigured || typeof window === "undefined") {
+    return getCachedProducts();
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from("products")
+      .select("*")
+      .eq("is_active", true)
+      .order("id", { ascending: true });
+
+    if (error) {
+      console.warn("Supabase products fetch notice:", error.message);
+      return getCachedProducts();
+    }
+
+    if (data && data.length > 0) {
+      const localCached = getCachedProducts();
+      const mapped: Product[] = data.map((row) => {
+        const localMatch = localCached.find((p) => p.id === row.id || p.slug === row.slug);
+        const fallbackMatch = initialProducts.find((p) => p.id === row.id || p.slug === row.slug);
+
+        // If this product was updated or configured in Admin, preserve the admin specs!
+        if (localMatch && localMatch.updatedAt) {
+          const remoteTime = row.updated_at ? new Date(row.updated_at).getTime() : 0;
+          const localTime = new Date(localMatch.updatedAt).getTime();
+          if (localTime >= remoteTime) {
+            return localMatch;
+          }
+        }
+
+        return {
+          id: row.id,
+          slug: row.slug,
+          name: localMatch?.name || row.name,
+          category: (row.category_slug
+            ? row.category_slug.charAt(0).toUpperCase() +
+              row.category_slug.slice(1).replace("-", " ")
+            : (localMatch?.category || "T-Shirts")),
+          price: localMatch?.price ?? Number(row.price),
+          compareAtPrice:
+            localMatch?.compareAtPrice ??
+            (row.compare_at_price ? Number(row.compare_at_price) : undefined),
+          rating: Number(row.rating ?? 5.0),
+          reviews: Number(row.reviews_count ?? 1),
+          images:
+            localMatch?.images !== undefined
+              ? localMatch.images
+              : Array.isArray(row.images) &&
+                row.images.length > 0 &&
+                !row.images[0].includes("placeholder.svg")
+                ? row.images
+                : (fallbackMatch?.images ?? []),
+          colors:
+            localMatch?.colors ||
+            fallbackMatch?.colors || [
+              { name: "Pitch Black", hex: "#0a0a0a" },
+              { name: "Ice White", hex: "#f5f5f5" },
+            ],
+          sizes:
+            localMatch?.sizes && localMatch.sizes.length > 0
+              ? localMatch.sizes
+              : (Array.isArray(row.sizes) && row.sizes.length > 0
+                  ? row.sizes
+                  : ["S", "M", "L", "XL", "XXL"]),
+          description: localMatch?.description || row.description || "",
+          fabric: localMatch?.fabric || row.fabric || "",
+          care: localMatch?.care || row.care || [],
+          badges: localMatch?.badges || row.badges || [],
+          isNew: localMatch?.isNew ?? (row.is_new ?? true),
+          isBestSeller: localMatch?.isBestSeller ?? (row.is_bestseller ?? false),
+          updatedAt: localMatch?.updatedAt || row.updated_at || undefined,
+        };
+      });
+
+      // Merge any locally added products not yet in Supabase
+      const remoteIds = new Set(mapped.map((p) => p.id));
+      const extraLocal = localCached.filter((p) => !remoteIds.has(p.id));
+      const combined = [...mapped, ...extraLocal];
+
+      try {
+        localStorage.setItem(PRODUCTS_STORAGE_KEY, JSON.stringify(combined));
+      } catch {
+        /* ignore */
+      }
+      return combined;
+    }
+  } catch (err) {
+    console.warn("Products fetch error fallback:", err);
+  }
+
+  return getCachedProducts();
+}
+

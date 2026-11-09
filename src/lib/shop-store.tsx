@@ -9,7 +9,7 @@ import {
 } from "react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth-store";
-import { products as staticProducts } from "@/data/products";
+import { getLiveProducts, FALLBACK_PRODUCT_IMAGE } from "@/data/products";
 import { broadcastSync } from "@/lib/sync-channel";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 
@@ -90,8 +90,9 @@ export function ShopProvider({ children }: { children: ReactNode }) {
 
         if (!isCancelled && cartRows && !cartErr) {
           const rows = cartRows as CartItemRow[];
+          const liveProducts = getLiveProducts();
           const mapped: CartLine[] = rows.map((row) => {
-            const prod = staticProducts.find(
+            const prod = liveProducts.find(
               (p) => p.id === row.product_id || p.slug === row.product_id,
             );
             return {
@@ -99,7 +100,7 @@ export function ShopProvider({ children }: { children: ReactNode }) {
               slug: prod?.slug || row.product_id,
               name: prod?.name || "DRIPCYCLEX Piece",
               price: prod?.price ?? 1799,
-              image: prod?.images[0] ?? "",
+              image: prod?.images?.[0] ?? FALLBACK_PRODUCT_IMAGE,
               size: row.size,
               color: row.color,
               qty: row.quantity,
@@ -117,14 +118,15 @@ export function ShopProvider({ children }: { children: ReactNode }) {
 
         if (!isCancelled && favRows && !favErr) {
           const rows = favRows as FavoriteRow[];
+          const liveProducts = getLiveProducts();
           const mappedSlugs = rows.map((r) => {
-            const prod = staticProducts.find(
+            const prod = liveProducts.find(
               (p) => p.id === r.product_id || p.slug === r.product_id,
             );
             return prod?.slug || r.product_id;
           });
           setWishlist(mappedSlugs);
-          syncWishlistToAdmin(mappedSlugs, staticProducts);
+          syncWishlistToAdmin(mappedSlugs, liveProducts);
         }
       } catch (err) {
         console.warn("Notice loading user cart/wishlist:", err);
@@ -159,61 +161,59 @@ export function ShopProvider({ children }: { children: ReactNode }) {
         return false;
       }
 
-      const prod = staticProducts.find((p) => p.slug === line.slug || p.id === line.slug);
+      const liveProducts = getLiveProducts();
+      const prod = liveProducts.find((p) => p.slug === line.slug || p.id === line.slug);
       const productId = prod?.id || line.slug;
       const lineId = `${line.slug}-${line.size}-${line.color}`;
 
-      setCart((prev) => {
-        const existing = prev.find((l) => l.id === lineId);
-        const next = existing
-          ? prev.map((l) => (l.id === lineId ? { ...l, qty: l.qty + line.qty } : l))
-          : [...prev, { ...line, id: lineId }];
+      const existing = cart.find((l) => l.id === lineId);
+      const nextCart = existing
+        ? cart.map((l) => (l.id === lineId ? { ...l, qty: l.qty + line.qty } : l))
+        : [...cart, { ...line, id: lineId }];
 
-        if (isSupabaseConfigured) {
-          const newQty = existing ? existing.qty + line.qty : line.qty;
-          void (async () => {
-            try {
-              await supabase.from("cart_items").upsert(
-                {
-                  user_id: currentUser.id,
-                  product_id: productId,
-                  size: line.size,
-                  color: line.color,
-                  quantity: newQty,
-                  updated_at: new Date().toISOString(),
-                },
-                { onConflict: "user_id,product_id,size,color" },
-              );
-            } catch (err) {
-              console.warn("Supabase cart_items insert notice:", err);
-            }
-          })();
-        }
+      setCart(nextCart);
+      syncCartToAdmin(nextCart);
+      broadcastSync("CART_UPDATED", { count: nextCart.length });
 
-        syncCartToAdmin(next);
-        broadcastSync("CART_UPDATED", { count: next.length });
-        return next;
-      });
+      if (isSupabaseConfigured) {
+        const newQty = existing ? existing.qty + line.qty : line.qty;
+        void (async () => {
+          try {
+            await supabase.from("cart_items").upsert(
+              {
+                user_id: currentUser.id,
+                product_id: productId,
+                size: line.size,
+                color: line.color,
+                quantity: newQty,
+                updated_at: new Date().toISOString(),
+              },
+              { onConflict: "user_id,product_id,size,color" },
+            );
+          } catch (err) {
+            console.warn("Supabase cart_items insert notice:", err);
+          }
+        })();
+      }
 
       return true;
     },
-    [currentUser, syncCartToAdmin],
+    [cart, currentUser, syncCartToAdmin],
   );
 
   // Remove Line from Bag
   const removeLine = useCallback(
     async (id: string) => {
       const lineToRemove = cart.find((l) => l.id === id);
+      const nextCart = cart.filter((l) => l.id !== id);
 
-      setCart((prev) => {
-        const next = prev.filter((l) => l.id !== id);
-        syncCartToAdmin(next);
-        broadcastSync("CART_UPDATED", { count: next.length });
-        return next;
-      });
+      setCart(nextCart);
+      syncCartToAdmin(nextCart);
+      broadcastSync("CART_UPDATED", { count: nextCart.length });
 
       if (isSupabaseConfigured && currentUser?.id && lineToRemove) {
-        const prod = staticProducts.find(
+        const liveProducts = getLiveProducts();
+        const prod = liveProducts.find(
           (p) => p.slug === lineToRemove.slug || p.id === lineToRemove.slug,
         );
         const productId = prod?.id || lineToRemove.slug;
@@ -242,16 +242,15 @@ export function ShopProvider({ children }: { children: ReactNode }) {
       }
 
       const targetLine = cart.find((l) => l.id === id);
+      const nextCart = cart.map((l) => (l.id === id ? { ...l, qty } : l));
 
-      setCart((prev) => {
-        const next = prev.map((l) => (l.id === id ? { ...l, qty } : l));
-        syncCartToAdmin(next);
-        broadcastSync("CART_UPDATED", { count: next.length });
-        return next;
-      });
+      setCart(nextCart);
+      syncCartToAdmin(nextCart);
+      broadcastSync("CART_UPDATED", { count: nextCart.length });
 
       if (isSupabaseConfigured && currentUser?.id && targetLine) {
-        const prod = staticProducts.find(
+        const liveProducts = getLiveProducts();
+        const prod = liveProducts.find(
           (p) => p.slug === targetLine.slug || p.id === targetLine.slug,
         );
         const productId = prod?.id || targetLine.slug;
@@ -289,12 +288,13 @@ export function ShopProvider({ children }: { children: ReactNode }) {
         ? wishlist.filter((s) => s !== slug)
         : [...wishlist, slug];
 
+      const liveProducts = getLiveProducts();
       setWishlist(nextWishlist);
-      syncWishlistToAdmin(nextWishlist, staticProducts);
+      syncWishlistToAdmin(nextWishlist, liveProducts);
       broadcastSync("WISHLIST_UPDATED", { count: nextWishlist.length });
 
       if (isSupabaseConfigured) {
-        const prod = staticProducts.find((p) => p.slug === slug || p.id === slug);
+        const prod = liveProducts.find((p) => p.slug === slug || p.id === slug);
         const productId = prod?.id || slug;
         try {
           if (isCurrentlyFavorited) {

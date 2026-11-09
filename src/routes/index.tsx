@@ -9,7 +9,7 @@ import {
   Compass,
   ChevronRight,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 
 import heroImg from "@/assets/hero-main.jpg";
@@ -19,7 +19,9 @@ import editorial2 from "@/assets/editorial-2.jpg";
 import { ProductCard } from "@/components/product-card";
 import { Reveal } from "@/components/reveal";
 import { DripcycleXLogo } from "@/components/logo";
-import { products, formatPrice } from "@/data/products";
+import { formatPrice, FALLBACK_PRODUCT_IMAGE, type Product } from "@/data/products";
+import { getCachedProducts, fetchProducts } from "@/lib/taxonomy-service";
+import { useRealtimeSync, type SyncPayload } from "@/lib/sync-channel";
 
 export const Route = createFileRoute("/")({
   component: Index,
@@ -28,8 +30,23 @@ export const Route = createFileRoute("/")({
 export function Index() {
   const [email, setEmail] = useState("");
   const [activeGarmentIndex, setActiveGarmentIndex] = useState(0);
+  const [allProducts, setAllProducts] = useState<Product[]>(getCachedProducts);
 
-  const activeGarment = products[activeGarmentIndex] ?? products[0];
+  useRealtimeSync(
+    useCallback((payload: SyncPayload) => {
+      if (payload.type === "PRODUCTS_UPDATED" || !payload.type) {
+        setAllProducts(getCachedProducts());
+      }
+    }, []),
+  );
+
+  useEffect(() => {
+    fetchProducts().then((prods) => {
+      if (prods && prods.length > 0) setAllProducts(prods);
+    });
+  }, []);
+
+  const activeGarment = allProducts[activeGarmentIndex] ?? allProducts[0];
   if (!activeGarment) return null;
 
   const handleSubscribe = (e: React.FormEvent) => {
@@ -203,7 +220,7 @@ export function Index() {
 
           {/* 3 Showcase Product Cards */}
           <div className="mt-12 grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
-            {products.map((product, index) => (
+            {allProducts.map((product, index) => (
               <Reveal key={product.id} delay={index * 120}>
                 <ProductCard product={product} badgeNumber={`0${index + 1} / 03`} />
               </Reveal>
@@ -226,7 +243,7 @@ export function Index() {
 
             {/* Silhouette Selector Tabs */}
             <div className="mt-8 flex flex-wrap justify-center gap-2">
-              {products.map((p, idx) => (
+              {allProducts.map((p, idx) => (
                 <button
                   key={p.id}
                   onClick={() => setActiveGarmentIndex(idx)}
@@ -247,7 +264,7 @@ export function Index() {
             <div className="lg:col-span-6">
               <div className="relative aspect-[3/4] w-full overflow-hidden border border-white/10 bg-zinc-900">
                 <img
-                  src={activeGarment.images[0]}
+                  src={activeGarment.images?.[0] || FALLBACK_PRODUCT_IMAGE}
                   alt={activeGarment.name}
                   className="h-full w-full object-cover"
                 />

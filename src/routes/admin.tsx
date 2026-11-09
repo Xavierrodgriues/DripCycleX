@@ -25,6 +25,11 @@ import {
   ArrowRight,
   RotateCcw,
   Database,
+  Layers,
+  Tag,
+  Check,
+  ImagePlus,
+  UploadCloud,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -32,9 +37,29 @@ import { DripcycleXLogo } from "@/components/logo";
 import {
   products as initialProducts,
   formatPrice,
+  FALLBACK_PRODUCT_IMAGE,
   type Product,
   type Category,
+  type CategoryItem,
+  type SizeItem,
 } from "@/data/products";
+import {
+  fetchCategories,
+  fetchSizes,
+  fetchProducts,
+  saveCategoryToSupabase,
+  deleteCategoryFromSupabase,
+  saveSizeToSupabase,
+  deleteSizeFromSupabase,
+  syncProductToSupabase,
+  deleteProductFromSupabase,
+  saveProductLocally,
+  deleteProductLocally,
+  uploadProductImage,
+  getCachedCategories,
+  getCachedSizes,
+  getCachedProducts,
+} from "@/lib/taxonomy-service";
 import { useShop } from "@/lib/shop-store";
 import {
   useAuth,
@@ -75,25 +100,45 @@ function getStoredCredentials(): StoredCredentials {
   return DEFAULT_ADMIN_CREDENTIALS;
 }
 
-type ActiveTab = "overview" | "products" | "users" | "carts" | "wishlists" | "security";
+type ActiveTab = "overview" | "products" | "categories" | "users" | "carts" | "wishlists" | "security";
 
 export function AdminRouteComponent() {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    try {
-      return sessionStorage.getItem("dripcyclex.admin.auth") === "true";
-    } catch {
-      return false;
-    }
-  });
+  const [hasMounted, setHasMounted] = useState<boolean>(false);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [credentials, setCredentials] = useState<StoredCredentials>(DEFAULT_ADMIN_CREDENTIALS);
 
-  const [credentials, setCredentials] = useState<StoredCredentials>(getStoredCredentials);
+  useEffect(() => {
+    setHasMounted(true);
+    try {
+      const isAuth = sessionStorage.getItem("dripcyclex.admin.auth") === "true";
+      setIsAuthenticated(isAuth);
+      setCredentials(getStoredCredentials());
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  if (!hasMounted) {
+    return (
+      <div className="min-h-screen bg-[#050505] text-white flex flex-col justify-center items-center px-4 py-12 relative overflow-hidden">
+        <div className="flex flex-col items-center gap-4 text-center">
+          <DripcycleXLogo className="h-16 w-16 animate-pulse" />
+          <div className="text-[11px] font-mono tracking-[0.3em] uppercase text-zinc-500">
+            DRIPCYCLEX // SYSTEM INITIALIZING...
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (!isAuthenticated) {
     return (
       <AdminLoginPage
         credentials={credentials}
         onLoginSuccess={() => {
-          sessionStorage.setItem("dripcyclex.admin.auth", "true");
+          try {
+            sessionStorage.setItem("dripcyclex.admin.auth", "true");
+          } catch {}
           setIsAuthenticated(true);
         }}
       />
@@ -105,10 +150,14 @@ export function AdminRouteComponent() {
       credentials={credentials}
       onUpdateCredentials={(newCreds) => {
         setCredentials(newCreds);
-        localStorage.setItem("dripcyclex.admin.credentials", JSON.stringify(newCreds));
+        try {
+          localStorage.setItem("dripcyclex.admin.credentials", JSON.stringify(newCreds));
+        } catch {}
       }}
       onLogout={() => {
-        sessionStorage.removeItem("dripcyclex.admin.auth");
+        try {
+          sessionStorage.removeItem("dripcyclex.admin.auth");
+        } catch {}
         setIsAuthenticated(false);
         toast.info("Session Closed", {
           description: "You have been logged out of the admin panel.",
@@ -287,18 +336,24 @@ function AdminDashboard({
       (payload: SyncPayload) => {
         setStorageVersion((v) => v + 1);
         reloadFromStorage();
-        if (payload.type === "CART_UPDATED") {
-          toast.info("⚡ Live Cart Stream", {
-            description: "Shopper updated bag on storefront.",
-          });
-        } else if (payload.type === "WISHLIST_UPDATED") {
-          toast.info("⚡ Live Wishlist Stream", {
-            description: "Shopper saved silhouette to archive.",
-          });
-        } else if (payload.type === "USER_REGISTERED") {
-          toast.success("⚡ Live Client Registration", {
-            description: "New customer profile registered on storefront.",
-          });
+        // Only trigger toast alerts for external/remote events, NOT actions performed locally in this admin tab
+        if (!payload.isLocal) {
+          if (payload.type === "CART_UPDATED") {
+            toast.info("⚡ Live Cart Stream", {
+              description: "Shopper updated bag on storefront.",
+              id: "realtime-cart-stream",
+            });
+          } else if (payload.type === "WISHLIST_UPDATED") {
+            toast.info("⚡ Live Wishlist Stream", {
+              description: "Shopper saved silhouette to archive.",
+              id: "realtime-wishlist-stream",
+            });
+          } else if (payload.type === "USER_REGISTERED") {
+            toast.success("⚡ Live Client Registration", {
+              description: "New customer profile registered on storefront.",
+              id: "realtime-user-stream",
+            });
+          }
         }
       },
       [reloadFromStorage],
@@ -306,14 +361,7 @@ function AdminDashboard({
   );
 
   // Products State
-  const [productsList, setProductsList] = useState<Product[]>(() => {
-    try {
-      const saved = localStorage.getItem("dripcyclex.admin.products");
-      return saved ? JSON.parse(saved) : initialProducts;
-    } catch {
-      return initialProducts;
-    }
-  });
+  const [productsList, setProductsList] = useState<Product[]>(getCachedProducts);
 
   // REAL Users State (Starts EMPTY if no user has registered yet)
   const [usersList, setUsersList] = useState<CustomerUser[]>(() => {
@@ -332,6 +380,44 @@ function AdminDashboard({
   const [isAddCartItemOpen, setIsAddCartItemOpen] = useState(false);
   const [isAddWishlistItemOpen, setIsAddWishlistItemOpen] = useState(false);
   const [isCredentialsModalOpen, setIsCredentialsModalOpen] = useState(false);
+
+  // Categories & Sizes State (Synced with Supabase)
+  const [categoriesList, setCategoriesList] = useState<CategoryItem[]>(getCachedCategories);
+  const [sizesList, setSizesList] = useState<SizeItem[]>(getCachedSizes);
+  const [isAddCategoryOpen, setIsAddCategoryOpen] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<CategoryItem | null>(null);
+  const [isAddSizeOpen, setIsAddSizeOpen] = useState(false);
+
+  // Dynamic Product Sizes selection state for Add/Edit
+  const [selectedNewProductSizes, setSelectedNewProductSizes] = useState<string[]>(() =>
+    getCachedSizes().map((s) => s.code),
+  );
+  const [selectedEditProductSizes, setSelectedEditProductSizes] = useState<string[]>([]);
+
+  // Dynamic Product Carousel Images state for Add/Edit
+  const [editProductImages, setEditProductImages] = useState<string[]>([]);
+  const [newProductImages, setNewProductImages] = useState<string[]>([]);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+
+  useEffect(() => {
+    if (editingProduct) {
+      setSelectedEditProductSizes(editingProduct.sizes || []);
+      setEditProductImages(editingProduct.images || []);
+    }
+  }, [editingProduct]);
+
+  // Initial and realtime sync with Supabase tables
+  useEffect(() => {
+    fetchProducts().then((prods) => {
+      if (prods && prods.length > 0) setProductsList(prods);
+    });
+    fetchCategories().then((cats) => {
+      if (cats && cats.length > 0) setCategoriesList(cats);
+    });
+    fetchSizes().then((szs) => {
+      if (szs && szs.length > 0) setSizesList(szs);
+    });
+  }, [realtimeTick]);
 
   // Sync users whenever auth store changes or realtime stream emits
   useEffect(() => {
@@ -492,26 +578,123 @@ function AdminDashboard({
   }, [cartsList]);
 
   // ----------------------------------------------------
-  // PRODUCT HANDLERS
+  // PRODUCT HANDLERS & IMAGE UPLOAD PIPELINE
   // ----------------------------------------------------
+  const handleUploadImages = async (files: FileList | null, isEdit: boolean) => {
+    if (!files || files.length === 0) return;
+    setIsUploadingImage(true);
+    const prodId = isEdit && editingProduct ? editingProduct.id : `dcx-new-${Date.now()}`;
+    const uploadedUrls: string[] = [];
+
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        if (!file) continue;
+        const res = await uploadProductImage(file, prodId);
+        if (res.url) {
+          uploadedUrls.push(res.url);
+        }
+      }
+
+      if (uploadedUrls.length > 0) {
+        if (isEdit) {
+          setEditProductImages((prev) => [...prev, ...uploadedUrls]);
+        } else {
+          setNewProductImages((prev) => [...prev, ...uploadedUrls]);
+        }
+        toast.success(
+          `${uploadedUrls.length} Image${uploadedUrls.length > 1 ? "s" : ""} Uploaded`,
+          {
+            description: "Saved to Supabase Storage & added to silhouette carousel.",
+            id: "img-upload-success",
+          },
+        );
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Image Upload Notice", {
+        description: "Could not process image upload.",
+      });
+    } finally {
+      setIsUploadingImage(false);
+    }
+  };
+
+  const handleRemoveImage = (index: number, isEdit: boolean) => {
+    if (isEdit) {
+      setEditProductImages((prev) => prev.filter((_, idx) => idx !== index));
+    } else {
+      setNewProductImages((prev) => prev.filter((_, idx) => idx !== index));
+    }
+    toast.info("Image Removed from Carousel");
+  };
+
+  const handleSetCoverImage = (index: number, isEdit: boolean) => {
+    if (index === 0) return;
+    if (isEdit) {
+      setEditProductImages((prev) => {
+        const item = prev[index];
+        if (!item) return prev;
+        const rest = prev.filter((_, idx) => idx !== index);
+        return [item, ...rest];
+      });
+    } else {
+      setNewProductImages((prev) => {
+        const item = prev[index];
+        if (!item) return prev;
+        const rest = prev.filter((_, idx) => idx !== index);
+        return [item, ...rest];
+      });
+    }
+    toast.success("Cover Image Set", {
+      description: "Selected photo is now the primary silhouette cover.",
+    });
+  };
+
+  const handleClearAllImages = (isEdit: boolean) => {
+    if (confirm("Remove all existing images from this silhouette's carousel?")) {
+      if (isEdit) {
+        setEditProductImages([]);
+      } else {
+        setNewProductImages([]);
+      }
+      toast.info("All Images Removed", {
+        description: "Existing images cleared. You can upload new photos below.",
+      });
+    }
+  };
+
   const handleUpdateProduct = (updated: Product) => {
-    setProductsList((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+    const finalProduct: Product = {
+      ...updated,
+      sizes: selectedEditProductSizes.length > 0 ? selectedEditProductSizes : updated.sizes,
+      images: editProductImages,
+    };
+    const nextList = saveProductLocally(finalProduct);
+    setProductsList(nextList);
     setEditingProduct(null);
     toast.success("Silhouette Updated", {
-      description: `${updated.name} specifications have been saved.`,
+      description: `${finalProduct.name} specs, sizes & images saved across catalog.`,
+      id: `prod-update-${finalProduct.id}`,
     });
   };
 
   const handleToggleProductStatus = (id: string) => {
-    setProductsList((prev) => prev.map((p) => (p.id === id ? { ...p, isNew: !p.isNew } : p)));
-    toast.info("Status Toggled");
+    const target = productsList.find((p) => p.id === id);
+    if (!target) return;
+    const updated = { ...target, isNew: !target.isNew };
+    const nextList = saveProductLocally(updated);
+    setProductsList(nextList);
+    toast.info("Status Toggled", { id: `prod-toggle-${id}` });
   };
 
   const handleDeleteProduct = (id: string, name: string) => {
     if (confirm(`Are you sure you want to delete ${name}?`)) {
-      setProductsList((prev) => prev.filter((p) => p.id !== id));
+      const nextList = deleteProductLocally(id);
+      setProductsList(nextList);
       toast.error("Product Removed", {
-        description: `${name} has been taken down from active drops.`,
+        description: `${name} has been removed from active drops.`,
+        id: `prod-delete-${id}`,
       });
     }
   };
@@ -519,21 +702,26 @@ function AdminDashboard({
   const handleCreateProduct = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
+    const chosenCategory =
+      (formData.get("category") as string) || (categoriesList[0]?.name ?? "T-Shirts");
+    const chosenSizes =
+      selectedNewProductSizes.length > 0 ? selectedNewProductSizes : ["S", "M", "L", "XL", "XXL"];
+
     const newProd: Product = {
       id: `dcx-00${productsList.length + 1}`,
       slug: (formData.get("slug") as string) || `drop-0${productsList.length + 1}`,
       name: (formData.get("name") as string) || "DRIPCYCLEX Architectural Piece",
-      category: (formData.get("category") as Category) || "T-Shirts",
+      category: chosenCategory,
       price: Number(formData.get("price")) || 2499,
       compareAtPrice: Number(formData.get("compareAtPrice")) || 3199,
       rating: 5.0,
       reviews: 1,
-      images: ["/assets/p1-a.jpg", "/assets/p1-b.jpg"],
+      images: newProductImages.length > 0 ? newProductImages : [],
       colors: [
         { name: "Pitch Black", hex: "#0a0a0a" },
         { name: "Ice White", hex: "#f5f5f5" },
       ],
-      sizes: ["S", "M", "L", "XL", "XXL"],
+      sizes: chosenSizes,
       description:
         (formData.get("description") as string) ||
         "Engineered heavyweight dark streetwear silhouette.",
@@ -543,39 +731,200 @@ function AdminDashboard({
       isNew: true,
       isBestSeller: false,
     };
-    setProductsList((prev) => [...prev, newProd]);
+    const nextList = saveProductLocally(newProd);
+    setProductsList(nextList);
     setIsAddProductOpen(false);
+    setNewProductImages([]);
     toast.success("New Silhouette Added", {
-      description: `${newProd.name} is now in the DRIPCYCLEX catalog.`,
+      description: `${newProd.name} is now saved in catalog.`,
+      id: `prod-create-${newProd.id}`,
     });
+  };
+
+  // ----------------------------------------------------
+  // CATEGORIES & SIZES HANDLERS
+  // ----------------------------------------------------
+  const handleCreateCategory = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    const name = (fd.get("name") as string)?.trim();
+    if (!name) {
+      toast.error("Category name is required");
+      return;
+    }
+    const rawSlug = (fd.get("slug") as string)?.trim() || name;
+    const slug = rawSlug.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    const description = (fd.get("description") as string)?.trim() || "";
+    const display_order = Number(fd.get("display_order")) || categoriesList.length + 1;
+
+    const newCategory: CategoryItem = {
+      slug,
+      name,
+      description,
+      display_order,
+      is_active: true,
+    };
+
+    const nextCats = [...categoriesList.filter((c) => c.slug !== slug), newCategory].sort(
+      (a, b) => (a.display_order ?? 0) - (b.display_order ?? 0),
+    );
+
+    setCategoriesList(nextCats);
+    try {
+      localStorage.setItem("dripcyclex.admin.categories", JSON.stringify(nextCats));
+    } catch {
+      /* ignore */
+    }
+
+    void saveCategoryToSupabase(newCategory);
+    setIsAddCategoryOpen(false);
+    toast.success("Category Created", {
+      description: `"${name}" (${slug}) saved to Supabase categories table.`,
+      id: `add-cat-${slug}`,
+    });
+  };
+
+  const handleUpdateCategory = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!editingCategory) return;
+    const fd = new FormData(e.currentTarget);
+    const name = (fd.get("name") as string)?.trim() || editingCategory.name;
+    const description = (fd.get("description") as string)?.trim() ?? editingCategory.description;
+    const display_order = Number(fd.get("display_order")) || editingCategory.display_order || 1;
+
+    const updatedCat: CategoryItem = {
+      ...editingCategory,
+      name,
+      description,
+      display_order,
+    };
+
+    const nextCats = categoriesList
+      .map((c) => (c.slug === editingCategory.slug ? updatedCat : c))
+      .sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0));
+
+    setCategoriesList(nextCats);
+    try {
+      localStorage.setItem("dripcyclex.admin.categories", JSON.stringify(nextCats));
+    } catch {
+      /* ignore */
+    }
+
+    void saveCategoryToSupabase(updatedCat);
+    setEditingCategory(null);
+    toast.success("Category Updated", {
+      description: `"${name}" updated in Supabase.`,
+      id: `update-cat-${updatedCat.slug}`,
+    });
+  };
+
+  const handleDeleteCategory = (slug: string, name: string) => {
+    if (confirm(`Remove category "${name}"? Silhouettes under this category will retain their current tag.`)) {
+      const nextCats = categoriesList.filter((c) => c.slug !== slug);
+      setCategoriesList(nextCats);
+      try {
+        localStorage.setItem("dripcyclex.admin.categories", JSON.stringify(nextCats));
+      } catch {
+        /* ignore */
+      }
+      void deleteCategoryFromSupabase(slug);
+      toast.error(`Category "${name}" removed.`, {
+        id: `del-cat-${slug}`,
+      });
+    }
+  };
+
+  const handleCreateSize = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    const code = (fd.get("code") as string)?.trim().toUpperCase();
+    if (!code) {
+      toast.error("Size code is required (e.g. 3XL, OS)");
+      return;
+    }
+    const name = (fd.get("name") as string)?.trim() || code;
+    const display_order = Number(fd.get("display_order")) || sizesList.length + 1;
+
+    const newSize: SizeItem = {
+      code,
+      name,
+      display_order,
+      is_active: true,
+    };
+
+    const nextSizes = [...sizesList.filter((s) => s.code !== code), newSize].sort(
+      (a, b) => (a.display_order ?? 0) - (b.display_order ?? 0),
+    );
+
+    setSizesList(nextSizes);
+    try {
+      localStorage.setItem("dripcyclex.admin.sizes", JSON.stringify(nextSizes));
+    } catch {
+      /* ignore */
+    }
+
+    void saveSizeToSupabase(newSize);
+    setIsAddSizeOpen(false);
+    toast.success("Size Added", {
+      description: `Size ${code} (${name}) saved to Supabase sizes table.`,
+      id: `add-size-${code}`,
+    });
+  };
+
+  const handleDeleteSize = (code: string) => {
+    if (confirm(`Remove size standard "${code}" from available sizes?`)) {
+      const nextSizes = sizesList.filter((s) => s.code !== code);
+      setSizesList(nextSizes);
+      try {
+        localStorage.setItem("dripcyclex.admin.sizes", JSON.stringify(nextSizes));
+      } catch {
+        /* ignore */
+      }
+      void deleteSizeFromSupabase(code);
+      toast.error(`Size standard "${code}" removed.`, {
+        id: `del-size-${code}`,
+      });
+    }
   };
 
   // ----------------------------------------------------
   // USER HANDLERS
   // ----------------------------------------------------
   const handleToggleUserStatus = (id: string) => {
-    setUsersList((prev) => {
-      const updated = prev.map((u) => {
-        if (u.id === id) {
-          const newStatus = u.status === "active" ? "suspended" : "active";
-          toast.info(`User ${u.name} status is now ${newStatus.toUpperCase()}`);
-          return { ...u, status: newStatus as "active" | "suspended" };
-        }
-        return u;
-      });
+    const targetUser = usersList.find((u) => u.id === id);
+    if (!targetUser) return;
+
+    const newStatus: "active" | "suspended" =
+      targetUser.status === "active" ? "suspended" : "active";
+
+    const updated = usersList.map((u) =>
+      u.id === id ? { ...u, status: newStatus } : u,
+    );
+
+    setUsersList(updated);
+    try {
       localStorage.setItem("dripcyclex.users", JSON.stringify(updated));
-      return updated;
+    } catch {
+      /* ignore */
+    }
+
+    toast.info(`User ${targetUser.name} status is now ${newStatus.toUpperCase()}`, {
+      id: `user-status-${id}`,
     });
   };
 
   const handleDeleteUser = (id: string, name: string) => {
     if (confirm(`Remove user ${name}?`)) {
-      setUsersList((prev) => {
-        const updated = prev.filter((u) => u.id !== id);
+      const updated = usersList.filter((u) => u.id !== id);
+      setUsersList(updated);
+      try {
         localStorage.setItem("dripcyclex.users", JSON.stringify(updated));
-        return updated;
+      } catch {
+        /* ignore */
+      }
+      toast.error(`User ${name} removed.`, {
+        id: `delete-user-${id}`,
       });
-      toast.error(`User ${name} removed.`);
     }
   };
 
@@ -925,6 +1274,26 @@ function AdminDashboard({
 
             <button
               onClick={() => {
+                setActiveTab("categories");
+                setMobileMenuOpen(false);
+              }}
+              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded text-xs font-bold uppercase tracking-wider transition-all ${
+                activeTab === "categories"
+                  ? "bg-white text-black shadow-lg"
+                  : "text-zinc-400 hover:text-white hover:bg-white/5"
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <Layers className="h-4 w-4" />
+                Categories & Sizes
+              </div>
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300 font-mono">
+                {categoriesList.length}
+              </span>
+            </button>
+
+            <button
+              onClick={() => {
                 setActiveTab("users");
                 setMobileMenuOpen(false);
               }}
@@ -1032,7 +1401,7 @@ function AdminDashboard({
               </div>
 
               {/* KPI Cards Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                 <div className="border border-white/10 bg-zinc-950 p-5 rounded">
                   <div className="flex items-center justify-between text-zinc-400">
                     <span className="text-xs font-bold uppercase tracking-wider">
@@ -1067,7 +1436,18 @@ function AdminDashboard({
                     <Package className="h-4 w-4 text-amber-400" />
                   </div>
                   <p className="mt-3 text-2xl font-black text-white">{productsList.length}</p>
-                  <p className="mt-1 text-xs text-zinc-500">Trinity Drop 01 Catalog</p>
+                  <p className="mt-1 text-xs text-zinc-500">Silhouettes in catalog</p>
+                </div>
+
+                <div className="border border-white/10 bg-zinc-950 p-5 rounded">
+                  <div className="flex items-center justify-between text-zinc-400">
+                    <span className="text-xs font-bold uppercase tracking-wider">
+                      Categories & Sizes
+                    </span>
+                    <Layers className="h-4 w-4 text-purple-400" />
+                  </div>
+                  <p className="mt-3 text-2xl font-black text-white">{categoriesList.length}</p>
+                  <p className="mt-1 text-xs text-zinc-500">{sizesList.length} active fit standards</p>
                 </div>
 
                 <div className="border border-white/10 bg-zinc-950 p-5 rounded">
@@ -1149,7 +1529,7 @@ function AdminDashboard({
                         >
                           <div className="flex items-center gap-3">
                             <img
-                              src={prod.images[0]}
+                              src={prod.images?.[0] || FALLBACK_PRODUCT_IMAGE}
                               alt=""
                               className="h-10 w-8 object-cover border border-white/10"
                             />
@@ -1217,7 +1597,7 @@ function AdminDashboard({
                         <td className="py-4 px-4">
                           <div className="flex items-center gap-3">
                             <img
-                              src={product.images[0]}
+                              src={product.images?.[0] || FALLBACK_PRODUCT_IMAGE}
                               alt=""
                               className="h-12 w-10 object-cover border border-white/10 rounded"
                             />
@@ -1287,6 +1667,179 @@ function AdminDashboard({
                     ))}
                   </tbody>
                 </table>
+              </div>
+            </div>
+          )}
+
+          {/* ======================================================== */}
+          {/* TAB: CATEGORIES & SIZES MANAGEMENT */}
+          {/* ======================================================== */}
+          {activeTab === "categories" && (
+            <div className="space-y-8">
+              {/* Header */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <h1 className="text-2xl sm:text-3xl font-black uppercase tracking-wider text-white">
+                    Categories & Fit Standards
+                  </h1>
+                  <p className="mt-1 text-sm text-zinc-400">
+                    Manage taxonomy classifications and size standards synced to Supabase database tables.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <button
+                    onClick={() => setIsAddSizeOpen(true)}
+                    className="inline-flex items-center gap-2 border border-white/20 bg-white/5 px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-white transition-colors hover:bg-white/10 rounded"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Add Size Standard
+                  </button>
+                  <button
+                    onClick={() => setIsAddCategoryOpen(true)}
+                    className="inline-flex items-center gap-2 bg-white px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-black transition-colors hover:bg-zinc-200 rounded"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Add New Category
+                  </button>
+                </div>
+              </div>
+
+              {/* SECTION 1: CATEGORIES TABLE */}
+              <div className="border border-white/10 bg-zinc-950 rounded overflow-hidden">
+                <div className="border-b border-white/10 px-5 py-3.5 flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <Layers className="h-4 w-4 text-purple-400" />
+                    <h3 className="text-sm font-bold uppercase tracking-wider text-white">
+                      Product Categories ({categoriesList.length})
+                    </h3>
+                  </div>
+                  <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">
+                    Live Supabase Table: public.categories
+                  </span>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="border-b border-white/10 bg-black text-[11px] font-bold uppercase tracking-wider text-zinc-400">
+                      <tr>
+                        <th className="py-3.5 px-4">Category Name</th>
+                        <th className="py-3.5 px-4">Slug Identifier</th>
+                        <th className="py-3.5 px-4">Description</th>
+                        <th className="py-3.5 px-4">Display Order</th>
+                        <th className="py-3.5 px-4">Assigned Silhouettes</th>
+                        <th className="py-3.5 px-4 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                      {categoriesList.map((cat) => {
+                        const productCount = productsList.filter(
+                          (p) =>
+                            p.category.toLowerCase() === cat.name.toLowerCase() ||
+                            p.category.toLowerCase() === cat.slug.toLowerCase(),
+                        ).length;
+
+                        return (
+                          <tr key={cat.slug} className="hover:bg-white/[0.02] transition-colors">
+                            <td className="py-4 px-4 font-bold text-white">
+                              <div className="flex items-center gap-2">
+                                <Tag className="h-3.5 w-3.5 text-zinc-500" />
+                                <span>{cat.name}</span>
+                              </div>
+                            </td>
+                            <td className="py-4 px-4 font-mono text-zinc-400">
+                              <span className="px-2 py-0.5 rounded bg-zinc-900 border border-white/10 text-[11px]">
+                                {cat.slug}
+                              </span>
+                            </td>
+                            <td className="py-4 px-4 text-zinc-400 max-w-xs truncate">
+                              {cat.description || "—"}
+                            </td>
+                            <td className="py-4 px-4 font-mono text-zinc-300">
+                              #{cat.display_order ?? 0}
+                            </td>
+                            <td className="py-4 px-4">
+                              <span className="inline-flex items-center gap-1 font-mono text-[11px] text-zinc-300 bg-white/5 px-2 py-0.5 rounded border border-white/10">
+                                <Package className="h-3 w-3 text-zinc-400" />
+                                {productCount} silhouettes
+                              </span>
+                            </td>
+                            <td className="py-4 px-4 text-right">
+                              <div className="inline-flex items-center gap-2">
+                                <button
+                                  onClick={() => setEditingCategory(cat)}
+                                  className="p-1.5 text-zinc-400 hover:text-white rounded border border-white/10 hover:border-white transition-colors"
+                                  title="Edit category"
+                                >
+                                  <Edit className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteCategory(cat.slug, cat.name)}
+                                  className="p-1.5 text-zinc-400 hover:text-red-400 rounded border border-white/10 hover:border-red-500/50 transition-colors"
+                                  title="Delete category"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* SECTION 2: SIZES STANDARDS */}
+              <div className="border border-white/10 bg-zinc-950 rounded p-5 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-4">
+                  <div>
+                    <h3 className="text-sm font-bold uppercase tracking-wider text-white">
+                      Fit Standards & Size Codes ({sizesList.length})
+                    </h3>
+                    <p className="text-xs text-zinc-400 mt-0.5">
+                      Live sizing standards stored in Supabase (public.sizes). Selectable when publishing silhouettes.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setIsAddSizeOpen(true)}
+                    className="inline-flex items-center gap-1.5 text-xs text-zinc-300 hover:text-white bg-white/5 hover:bg-white/10 px-3 py-1.5 rounded border border-white/15 transition-all self-start sm:self-auto"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    New Size Code
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+                  {sizesList.map((sz) => {
+                    const productsWithSize = productsList.filter((p) =>
+                      p.sizes.includes(sz.code),
+                    ).length;
+
+                    return (
+                      <div
+                        key={sz.code}
+                        className="group relative border border-white/10 bg-black p-3.5 rounded flex flex-col items-center justify-between transition-all hover:border-white/30"
+                      >
+                        <button
+                          onClick={() => handleDeleteSize(sz.code)}
+                          title={`Delete size ${sz.code}`}
+                          className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 p-1 text-zinc-500 hover:text-red-400 transition-opacity"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                        <span className="text-lg font-black font-mono tracking-wider text-white">
+                          {sz.code}
+                        </span>
+                        <span className="text-[10px] text-zinc-400 font-medium truncate max-w-full mt-0.5">
+                          {sz.name}
+                        </span>
+                        <span className="mt-2 text-[9px] font-mono text-zinc-500">
+                          {productsWithSize} drops
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           )}
@@ -1852,9 +2405,11 @@ function AdminDashboard({
                     defaultValue={editingProduct.category}
                     className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded focus:border-white focus:outline-none"
                   >
-                    <option value="T-Shirts">T-Shirts</option>
-                    <option value="Hoodies">Hoodies</option>
-                    <option value="Jackets">Jackets</option>
+                    {categoriesList.map((c) => (
+                      <option key={c.slug} value={c.name}>
+                        {c.name}
+                      </option>
+                    ))}
                   </select>
                 </div>
                 <div>
@@ -1891,6 +2446,157 @@ function AdminDashboard({
                     defaultValue={editingProduct.fabric}
                     className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded focus:border-white focus:outline-none"
                   />
+                </div>
+              </div>
+
+              {/* DYNAMIC SIZES SELECTOR */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-zinc-400 uppercase font-bold tracking-wider">
+                    Available Sizes ({selectedEditProductSizes.length})
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedEditProductSizes(sizesList.map((s) => s.code))}
+                      className="text-[10px] text-zinc-400 hover:text-white underline cursor-pointer"
+                    >
+                      Select All
+                    </button>
+                    <span className="text-zinc-600">·</span>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedEditProductSizes([])}
+                      className="text-[10px] text-zinc-400 hover:text-white underline cursor-pointer"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2 p-3 bg-black border border-white/15 rounded">
+                  {sizesList.map((sz) => {
+                    const isSelected = selectedEditProductSizes.includes(sz.code);
+                    return (
+                      <button
+                        key={sz.code}
+                        type="button"
+                        onClick={() => {
+                          setSelectedEditProductSizes((prev) =>
+                            prev.includes(sz.code)
+                              ? prev.filter((s) => s !== sz.code)
+                              : [...prev, sz.code],
+                          );
+                        }}
+                        className={`px-3 py-1.5 rounded text-xs font-mono font-bold transition-all border ${
+                          isSelected
+                            ? "bg-white text-black border-white shadow-sm"
+                            : "bg-zinc-900 text-zinc-400 border-white/10 hover:border-white/30 hover:text-white"
+                        }`}
+                      >
+                        {sz.code}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* PRODUCT CAROUSEL IMAGERY & SUPABASE STORAGE UPLOADER */}
+              <div className="space-y-2 border-t border-b border-white/10 py-3">
+                <div className="flex items-center justify-between">
+                  <label className="block text-zinc-400 uppercase font-bold tracking-wider">
+                    Silhouette Imagery & Carousel ({editProductImages.length})
+                  </label>
+                  {editProductImages.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => handleClearAllImages(true)}
+                      className="text-[10px] text-red-400 hover:text-red-300 underline cursor-pointer"
+                    >
+                      Remove All Existing Images
+                    </button>
+                  )}
+                </div>
+
+                {/* Carousel Image Preview Thumbnails */}
+                {editProductImages.length > 0 ? (
+                  <div className="grid grid-cols-4 sm:grid-cols-5 gap-2 p-2 bg-black border border-white/10 rounded">
+                    {editProductImages.map((imgUrl, idx) => (
+                      <div
+                        key={idx}
+                        className="group relative aspect-[3/4] rounded overflow-hidden border border-white/20 bg-zinc-900"
+                      >
+                        <img
+                          src={imgUrl}
+                          alt=""
+                          className="h-full w-full object-cover"
+                        />
+                        <div className="absolute top-1 left-1 bg-black/85 px-1 py-0.5 text-[9px] font-mono font-bold text-white rounded">
+                          {idx === 0 ? "Cover" : `#${idx + 1}`}
+                        </div>
+                        <div className="absolute inset-0 bg-black/80 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 p-1">
+                          {idx > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => handleSetCoverImage(idx, true)}
+                              className="text-[9px] bg-white text-black font-bold px-1.5 py-0.5 rounded uppercase hover:bg-zinc-200"
+                              title="Set as primary drop cover"
+                            >
+                              Cover
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveImage(idx, true)}
+                            className="text-[9px] bg-red-600 text-white font-bold px-1.5 py-0.5 rounded uppercase hover:bg-red-500"
+                            title="Remove from carousel"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-3 text-center bg-zinc-900/60 border border-dashed border-white/15 rounded text-zinc-400 text-xs">
+                    No images attached. Existing stock images cleared. Upload new photos below for this silhouette's carousel.
+                  </div>
+                )}
+
+                {/* Upload Trigger Input */}
+                <div>
+                  <input
+                    type="file"
+                    id="edit-product-img-upload"
+                    multiple
+                    accept="image/*"
+                    onChange={(e) => handleUploadImages(e.target.files, true)}
+                    className="hidden"
+                  />
+                  <label
+                    htmlFor="edit-product-img-upload"
+                    className={`flex items-center justify-center gap-2 w-full p-3 border border-dashed rounded cursor-pointer transition-all ${
+                      isUploadingImage
+                        ? "border-amber-400 bg-amber-950/20 text-amber-300"
+                        : "border-white/20 bg-zinc-900/50 text-zinc-300 hover:border-white hover:bg-zinc-900 hover:text-white"
+                    }`}
+                  >
+                    {isUploadingImage ? (
+                      <span className="flex items-center gap-2 text-xs font-bold">
+                        <span className="h-3.5 w-3.5 rounded-full border-2 border-amber-400 border-t-transparent animate-spin" />
+                        Uploading to Supabase Storage...
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-2 text-xs">
+                        <ImagePlus className="h-4 w-4 text-white" />
+                        <span className="font-bold uppercase tracking-wider">
+                          Upload Photos for Carousel
+                        </span>
+                        <span className="text-[10px] text-zinc-400">
+                          (Supabase Storage · Multi-select)
+                        </span>
+                      </span>
+                    )}
+                  </label>
                 </div>
               </div>
 
@@ -1973,11 +2679,14 @@ function AdminDashboard({
                   </label>
                   <select
                     name="category"
+                    defaultValue={categoriesList[0]?.name || "T-Shirts"}
                     className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded focus:border-white focus:outline-none"
                   >
-                    <option value="T-Shirts">T-Shirts</option>
-                    <option value="Hoodies">Hoodies</option>
-                    <option value="Jackets">Jackets</option>
+                    {categoriesList.map((c) => (
+                      <option key={c.slug} value={c.name}>
+                        {c.name}
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -2019,6 +2728,157 @@ function AdminDashboard({
                 />
               </div>
 
+              {/* DYNAMIC SIZES SELECTOR */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-zinc-400 uppercase font-bold tracking-wider">
+                    Available Sizes ({selectedNewProductSizes.length})
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedNewProductSizes(sizesList.map((s) => s.code))}
+                      className="text-[10px] text-zinc-400 hover:text-white underline cursor-pointer"
+                    >
+                      Select All
+                    </button>
+                    <span className="text-zinc-600">·</span>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedNewProductSizes([])}
+                      className="text-[10px] text-zinc-400 hover:text-white underline cursor-pointer"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2 p-3 bg-black border border-white/15 rounded">
+                  {sizesList.map((sz) => {
+                    const isSelected = selectedNewProductSizes.includes(sz.code);
+                    return (
+                      <button
+                        key={sz.code}
+                        type="button"
+                        onClick={() => {
+                          setSelectedNewProductSizes((prev) =>
+                            prev.includes(sz.code)
+                              ? prev.filter((s) => s !== sz.code)
+                              : [...prev, sz.code],
+                          );
+                        }}
+                        className={`px-3 py-1.5 rounded text-xs font-mono font-bold transition-all border ${
+                          isSelected
+                            ? "bg-white text-black border-white shadow-sm"
+                            : "bg-zinc-900 text-zinc-400 border-white/10 hover:border-white/30 hover:text-white"
+                        }`}
+                      >
+                        {sz.code}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* PRODUCT CAROUSEL IMAGERY & SUPABASE STORAGE UPLOADER */}
+              <div className="space-y-2 border-t border-b border-white/10 py-3">
+                <div className="flex items-center justify-between">
+                  <label className="block text-zinc-400 uppercase font-bold tracking-wider">
+                    Silhouette Imagery & Carousel ({newProductImages.length})
+                  </label>
+                  {newProductImages.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => handleClearAllImages(false)}
+                      className="text-[10px] text-red-400 hover:text-red-300 underline cursor-pointer"
+                    >
+                      Clear Images
+                    </button>
+                  )}
+                </div>
+
+                {/* Carousel Image Preview Thumbnails */}
+                {newProductImages.length > 0 ? (
+                  <div className="grid grid-cols-4 sm:grid-cols-5 gap-2 p-2 bg-black border border-white/10 rounded">
+                    {newProductImages.map((imgUrl, idx) => (
+                      <div
+                        key={idx}
+                        className="group relative aspect-[3/4] rounded overflow-hidden border border-white/20 bg-zinc-900"
+                      >
+                        <img
+                          src={imgUrl}
+                          alt=""
+                          className="h-full w-full object-cover"
+                        />
+                        <div className="absolute top-1 left-1 bg-black/85 px-1 py-0.5 text-[9px] font-mono font-bold text-white rounded">
+                          {idx === 0 ? "Cover" : `#${idx + 1}`}
+                        </div>
+                        <div className="absolute inset-0 bg-black/80 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 p-1">
+                          {idx > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => handleSetCoverImage(idx, false)}
+                              className="text-[9px] bg-white text-black font-bold px-1.5 py-0.5 rounded uppercase hover:bg-zinc-200"
+                              title="Set as primary drop cover"
+                            >
+                              Cover
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveImage(idx, false)}
+                            className="text-[9px] bg-red-600 text-white font-bold px-1.5 py-0.5 rounded uppercase hover:bg-red-500"
+                            title="Remove from carousel"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-3 text-center bg-zinc-900/60 border border-dashed border-white/15 rounded text-zinc-400 text-xs">
+                    No images uploaded yet. Upload photos below for this silhouette's carousel.
+                  </div>
+                )}
+
+                {/* Upload Trigger Input */}
+                <div>
+                  <input
+                    type="file"
+                    id="add-product-img-upload"
+                    multiple
+                    accept="image/*"
+                    onChange={(e) => handleUploadImages(e.target.files, false)}
+                    className="hidden"
+                  />
+                  <label
+                    htmlFor="add-product-img-upload"
+                    className={`flex items-center justify-center gap-2 w-full p-3 border border-dashed rounded cursor-pointer transition-all ${
+                      isUploadingImage
+                        ? "border-amber-400 bg-amber-950/20 text-amber-300"
+                        : "border-white/20 bg-zinc-900/50 text-zinc-300 hover:border-white hover:bg-zinc-900 hover:text-white"
+                    }`}
+                  >
+                    {isUploadingImage ? (
+                      <span className="flex items-center gap-2 text-xs font-bold">
+                        <span className="h-3.5 w-3.5 rounded-full border-2 border-amber-400 border-t-transparent animate-spin" />
+                        Uploading to Supabase Storage...
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-2 text-xs">
+                        <ImagePlus className="h-4 w-4 text-white" />
+                        <span className="font-bold uppercase tracking-wider">
+                          Upload Photos for Carousel
+                        </span>
+                        <span className="text-[10px] text-zinc-400">
+                          (Supabase Storage · Multi-select)
+                        </span>
+                      </span>
+                    )}
+                  </label>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
                   Description
@@ -2044,6 +2904,256 @@ function AdminDashboard({
                   className="px-5 py-2 bg-white text-black font-bold uppercase tracking-wider rounded hover:bg-zinc-200"
                 >
                   Publish Piece
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* ADD CATEGORY MODAL */}
+      {/* ======================================================== */}
+      {isAddCategoryOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="w-full max-w-md border border-white/20 bg-zinc-950 p-6 rounded shadow-2xl text-white my-8">
+            <div className="flex items-center justify-between border-b border-white/10 pb-4">
+              <h3 className="text-lg font-bold uppercase tracking-wider flex items-center gap-2">
+                <Layers className="h-5 w-5 text-purple-400" />
+                Add Category
+              </h3>
+              <button
+                onClick={() => setIsAddCategoryOpen(false)}
+                className="text-zinc-400 hover:text-white"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateCategory} className="mt-4 space-y-4 text-xs">
+              <div>
+                <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
+                  Category Name
+                </label>
+                <input
+                  name="name"
+                  required
+                  placeholder="e.g. Knitwear, Cargo Pants, Outerwear"
+                  className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded focus:border-white focus:outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
+                    Slug (Auto-generated if empty)
+                  </label>
+                  <input
+                    name="slug"
+                    placeholder="e.g. knitwear"
+                    className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded focus:border-white focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
+                    Display Order
+                  </label>
+                  <input
+                    name="display_order"
+                    type="number"
+                    defaultValue={categoriesList.length + 1}
+                    className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded focus:border-white focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
+                  Description
+                </label>
+                <textarea
+                  name="description"
+                  rows={2}
+                  placeholder="Brief description of silhouettes in this category..."
+                  className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded focus:border-white focus:outline-none"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-3 border-t border-white/10">
+                <button
+                  type="button"
+                  onClick={() => setIsAddCategoryOpen(false)}
+                  className="px-4 py-2 border border-white/20 text-zinc-300 hover:text-white rounded"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-white text-black font-bold uppercase tracking-wider rounded hover:bg-zinc-200"
+                >
+                  Save Category
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* EDIT CATEGORY MODAL */}
+      {/* ======================================================== */}
+      {editingCategory && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="w-full max-w-md border border-white/20 bg-zinc-950 p-6 rounded shadow-2xl text-white my-8">
+            <div className="flex items-center justify-between border-b border-white/10 pb-4">
+              <h3 className="text-lg font-bold uppercase tracking-wider">
+                Edit Category: {editingCategory.name}
+              </h3>
+              <button
+                onClick={() => setEditingCategory(null)}
+                className="text-zinc-400 hover:text-white"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateCategory} className="mt-4 space-y-4 text-xs">
+              <div>
+                <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
+                  Category Name
+                </label>
+                <input
+                  name="name"
+                  defaultValue={editingCategory.name}
+                  required
+                  className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded focus:border-white focus:outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
+                    Slug (Immutable)
+                  </label>
+                  <input
+                    disabled
+                    value={editingCategory.slug}
+                    className="w-full border border-white/10 bg-zinc-900 px-3 py-2 text-zinc-400 rounded cursor-not-allowed"
+                  />
+                </div>
+                <div>
+                  <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
+                    Display Order
+                  </label>
+                  <input
+                    name="display_order"
+                    type="number"
+                    defaultValue={editingCategory.display_order ?? 1}
+                    className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded focus:border-white focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
+                  Description
+                </label>
+                <textarea
+                  name="description"
+                  rows={2}
+                  defaultValue={editingCategory.description || ""}
+                  className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded focus:border-white focus:outline-none"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-3 border-t border-white/10">
+                <button
+                  type="button"
+                  onClick={() => setEditingCategory(null)}
+                  className="px-4 py-2 border border-white/20 text-zinc-300 hover:text-white rounded"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-white text-black font-bold uppercase tracking-wider rounded hover:bg-zinc-200"
+                >
+                  Update Category
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* ADD SIZE MODAL */}
+      {/* ======================================================== */}
+      {isAddSizeOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="w-full max-w-sm border border-white/20 bg-zinc-950 p-6 rounded shadow-2xl text-white my-8">
+            <div className="flex items-center justify-between border-b border-white/10 pb-4">
+              <h3 className="text-lg font-bold uppercase tracking-wider flex items-center gap-2">
+                <Check className="h-5 w-5 text-emerald-400" />
+                Add Size Standard
+              </h3>
+              <button
+                onClick={() => setIsAddSizeOpen(false)}
+                className="text-zinc-400 hover:text-white"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateSize} className="mt-4 space-y-4 text-xs">
+              <div>
+                <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
+                  Size Code (e.g. XS, 3XL, 4XL, OS)
+                </label>
+                <input
+                  name="code"
+                  required
+                  placeholder="3XL"
+                  className="w-full border border-white/15 bg-black px-3 py-2 text-white font-mono font-bold uppercase rounded focus:border-white focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
+                  Full Name
+                </label>
+                <input
+                  name="name"
+                  placeholder="Triple Extra Large"
+                  className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded focus:border-white focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
+                  Display Order
+                </label>
+                <input
+                  name="display_order"
+                  type="number"
+                  defaultValue={sizesList.length + 1}
+                  className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded focus:border-white focus:outline-none"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-3 border-t border-white/10">
+                <button
+                  type="button"
+                  onClick={() => setIsAddSizeOpen(false)}
+                  className="px-4 py-2 border border-white/20 text-zinc-300 hover:text-white rounded"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-white text-black font-bold uppercase tracking-wider rounded hover:bg-zinc-200"
+                >
+                  Save Size Code
                 </button>
               </div>
             </form>

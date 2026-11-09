@@ -1,7 +1,9 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   ArrowLeft,
+  ChevronLeft,
+  ChevronRight,
   Heart,
   Ruler,
   Share2,
@@ -12,7 +14,9 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { formatPrice, getProduct, products } from "@/data/products";
+import { formatPrice, getProduct, FALLBACK_PRODUCT_IMAGE, type Product } from "@/data/products";
+import { getCachedProducts, fetchProducts } from "@/lib/taxonomy-service";
+import { useRealtimeSync, type SyncPayload } from "@/lib/sync-channel";
 import { useShop } from "@/lib/shop-store";
 import { ProductCard } from "@/components/product-card";
 import {
@@ -31,16 +35,63 @@ export const Route = createFileRoute("/product/$slug")({
 function ProductDetailsPage() {
   const { slug } = Route.useParams();
   const navigate = useNavigate();
-  const product = getProduct(slug);
+
+  // Dynamic Product State from Admin / Supabase
+  const [product, setProduct] = useState<Product | undefined>(() => getProduct(slug));
+  const [allProducts, setAllProducts] = useState<Product[]>(getCachedProducts);
+
+  // Cross-tab real-time sync with Admin updates
+  useRealtimeSync(
+    useCallback(
+      (payload: SyncPayload) => {
+        if (payload.type === "PRODUCTS_UPDATED" || !payload.type) {
+          const fresh = getProduct(slug);
+          if (fresh) setProduct(fresh);
+          setAllProducts(getCachedProducts());
+        }
+      },
+      [slug],
+    ),
+  );
+
+  // Supabase fetch on mount
+  useEffect(() => {
+    fetchProducts().then((prods) => {
+      if (prods && prods.length > 0) {
+        setAllProducts(prods);
+        const match = prods.find((p) => p.slug === slug || p.id === slug);
+        if (match) setProduct(match);
+      }
+    });
+  }, [slug]);
 
   const { wishlist, toggleWishlist, addToCart } = useShop();
 
   // Selected state
   const [selectedImgIndex, setSelectedImgIndex] = useState(0);
   const [selectedColor, setSelectedColor] = useState(product?.colors[0]?.name ?? "");
-  const [selectedSize, setSelectedSize] = useState(product?.sizes[1] ?? product?.sizes[0] ?? "");
+  const [selectedSize, setSelectedSize] = useState<string>(
+    product?.sizes[1] ?? product?.sizes[0] ?? "",
+  );
   const [quantity, setQuantity] = useState(1);
   const [activeTab, setActiveTab] = useState<"description" | "fabric" | "care">("description");
+
+  // Keep selected size in sync if product sizes change
+  useEffect(() => {
+    if (product?.sizes && product.sizes.length > 0) {
+      if (!selectedSize || !product.sizes.includes(selectedSize)) {
+        setSelectedSize(product.sizes[1] ?? product.sizes[0] ?? "");
+      }
+    }
+  }, [product, selectedSize]);
+
+  useEffect(() => {
+    if (product?.colors && product.colors.length > 0) {
+      if (!selectedColor || !product.colors.some((c) => c.name === selectedColor)) {
+        setSelectedColor(product.colors[0]?.name ?? "");
+      }
+    }
+  }, [product, selectedColor]);
 
   if (!product) {
     return (
@@ -65,15 +116,15 @@ function ProductDetailsPage() {
     ? Math.round(((product.compareAtPrice - product.price) / product.compareAtPrice) * 100)
     : null;
 
-  // The other 2 products in the 3-piece Trinity Drop
-  const otherTrinityPieces = products.filter((p) => p.id !== product.id);
+  // The other products in the catalog
+  const otherTrinityPieces = allProducts.filter((p) => p.id !== product.id);
 
   const handleAddToCart = () => {
     const added = addToCart({
       slug: product.slug,
       name: product.name,
       price: product.price,
-      image: product.images[0] ?? "",
+      image: product.images?.[0] ?? FALLBACK_PRODUCT_IMAGE,
       size: selectedSize,
       color: selectedColor,
       qty: quantity,
@@ -120,12 +171,16 @@ function ProductDetailsPage() {
       {/* Main Product Container */}
       <div className="mx-auto max-w-[1400px] px-5 py-10 sm:px-8 lg:px-12">
         <div className="grid gap-12 lg:grid-cols-12">
-          {/* Left Column: Image Gallery */}
+          {/* Left Column: Image Gallery & Carousel */}
           <div className="lg:col-span-7 space-y-4">
-            {/* Main Image */}
-            <div className="relative aspect-[3/4] w-full overflow-hidden bg-zinc-950 border border-white/10">
+            {/* Main Carousel Image */}
+            <div className="group relative aspect-[3/4] w-full overflow-hidden bg-zinc-950 border border-white/10">
               <img
-                src={product.images[selectedImgIndex] ?? product.images[0]}
+                src={
+                  product.images && product.images.length > 0
+                    ? (product.images[selectedImgIndex] ?? product.images[0])
+                    : FALLBACK_PRODUCT_IMAGE
+                }
                 alt={product.name}
                 className="h-full w-full object-cover transition-all duration-500"
               />
@@ -139,17 +194,58 @@ function ProductDetailsPage() {
                   </span>
                 )}
               </div>
+
+              {/* Interactive Carousel Arrow Controls */}
+              {product.images && product.images.length > 1 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setSelectedImgIndex((prev) =>
+                        prev > 0 ? prev - 1 : product.images.length - 1,
+                      )
+                    }
+                    className="absolute left-3 top-1/2 -translate-y-1/2 h-10 w-10 flex items-center justify-center bg-black/70 hover:bg-white hover:text-black text-white border border-white/20 transition-all rounded-full z-20 opacity-0 group-hover:opacity-100 focus:opacity-100"
+                    title="Previous photo"
+                  >
+                    <ChevronLeft className="h-5 w-5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setSelectedImgIndex((prev) =>
+                        prev < product.images.length - 1 ? prev + 1 : 0,
+                      )
+                    }
+                    className="absolute right-3 top-1/2 -translate-y-1/2 h-10 w-10 flex items-center justify-center bg-black/70 hover:bg-white hover:text-black text-white border border-white/20 transition-all rounded-full z-20 opacity-0 group-hover:opacity-100 focus:opacity-100"
+                    title="Next photo"
+                  >
+                    <ChevronRight className="h-5 w-5" />
+                  </button>
+                  <div className="absolute bottom-4 right-4 bg-black/85 backdrop-blur-md px-2.5 py-1 text-[11px] font-mono border border-white/20 text-white z-10 font-bold">
+                    0{selectedImgIndex + 1} / 0{product.images.length}
+                  </div>
+                </>
+              )}
+
+              {(!product.images || product.images.length === 0) && (
+                <div className="absolute bottom-4 left-4 right-4 bg-black/90 p-3 border border-white/10 text-center">
+                  <p className="text-xs text-zinc-400 font-mono">
+                    Stock imagery removed. Upload custom photos in Admin panel.
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Thumbnail Selection */}
-            {product.images.length > 1 && (
-              <div className="flex gap-4">
+            {product.images && product.images.length > 1 && (
+              <div className="flex gap-3 overflow-x-auto pb-2">
                 {product.images.map((img, idx) => (
                   <button
                     key={idx}
                     onClick={() => setSelectedImgIndex(idx)}
                     className={cn(
-                      "relative aspect-[3/4] w-20 overflow-hidden border bg-zinc-950 transition-all",
+                      "relative aspect-[3/4] w-20 shrink-0 overflow-hidden border bg-zinc-950 transition-all rounded-sm",
                       selectedImgIndex === idx
                         ? "border-white ring-2 ring-white/30"
                         : "border-white/15 opacity-60 hover:opacity-100",
@@ -325,7 +421,7 @@ function ProductDetailsPage() {
                 </Dialog>
               </div>
 
-              <div className="grid grid-cols-5 gap-2">
+              <div className="flex flex-wrap gap-2">
                 {product.sizes.map((sz) => {
                   const isSelected = selectedSize === sz;
                   return (
@@ -333,7 +429,7 @@ function ProductDetailsPage() {
                       key={sz}
                       onClick={() => setSelectedSize(sz)}
                       className={cn(
-                        "py-3 text-xs font-black uppercase tracking-wider border transition-all",
+                        "min-w-[54px] px-4 py-3 text-xs font-black uppercase tracking-wider border transition-all text-center",
                         isSelected
                           ? "border-white bg-white text-black shadow-lg"
                           : "border-white/15 text-zinc-300 hover:border-white/40 hover:text-white",

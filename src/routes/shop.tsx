@@ -1,10 +1,19 @@
 import { createFileRoute, useNavigate, useSearch } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
 import { Filter, RotateCcw, SlidersHorizontal, X } from "lucide-react";
 import { z } from "zod";
 
 import { ProductCard } from "@/components/product-card";
-import { ALL_SIZES, CATEGORIES, products, type Category } from "@/data/products";
+import { type Category, type Product } from "@/data/products";
+import {
+  getCachedCategories,
+  getCachedSizes,
+  getCachedProducts,
+  fetchCategories,
+  fetchSizes,
+  fetchProducts,
+} from "@/lib/taxonomy-service";
+import { useRealtimeSync, type SyncPayload } from "@/lib/sync-channel";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 
@@ -34,6 +43,36 @@ function ShopPage() {
   const searchParams = useSearch({ from: "/shop" });
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
 
+  const [allProducts, setAllProducts] = useState<Product[]>(getCachedProducts);
+  const [categoriesList, setCategoriesList] = useState(getCachedCategories);
+  const [sizesList, setSizesList] = useState(getCachedSizes);
+
+  useRealtimeSync(
+    useCallback((payload: SyncPayload) => {
+      if (payload.type === "PRODUCTS_UPDATED" || !payload.type) {
+        setAllProducts(getCachedProducts());
+      }
+      if (payload.type === "CATEGORIES_UPDATED") {
+        setCategoriesList(getCachedCategories());
+      }
+      if (payload.type === "SIZES_UPDATED") {
+        setSizesList(getCachedSizes());
+      }
+    }, []),
+  );
+
+  useEffect(() => {
+    fetchProducts().then((prods) => {
+      if (prods && prods.length > 0) setAllProducts(prods);
+    });
+    fetchCategories().then((cats) => {
+      if (cats && cats.length > 0) setCategoriesList(cats);
+    });
+    fetchSizes().then((szs) => {
+      if (szs && szs.length > 0) setSizesList(szs);
+    });
+  }, []);
+
   const selectedCategory = searchParams.category;
   const selectedColor = searchParams.color;
   const selectedSize = searchParams.size;
@@ -43,7 +82,7 @@ function ShopPage() {
 
   // Filter products logic
   const filteredProducts = useMemo(() => {
-    let list = [...products];
+    let list = [...allProducts];
 
     if (selectedCategory) {
       list = list.filter((p) => p.category.toLowerCase() === selectedCategory.toLowerCase());
@@ -90,7 +129,7 @@ function ShopPage() {
     }
 
     return list;
-  }, [selectedCategory, selectedColor, selectedSize, selectedSort, searchQuery, maxPrice]);
+  }, [allProducts, selectedCategory, selectedColor, selectedSize, selectedSort, searchQuery, maxPrice]);
 
   const updateFilters = (newParams: Record<string, string | number | undefined>) => {
     navigate({
@@ -132,23 +171,29 @@ function ShopPage() {
             >
               <span>The Full Capsule</span>
               <span className="text-xs bg-white/10 px-1.5 py-0.5 rounded text-white">
-                {products.length}
+                {allProducts.length}
               </span>
             </button>
           </li>
-          {CATEGORIES.map((cat) => {
-            const count = products.filter((p) => p.category === cat).length;
-            const isSelected = selectedCategory?.toLowerCase() === cat.toLowerCase();
+          {categoriesList.map((cat) => {
+            const count = allProducts.filter(
+              (p) =>
+                p.category.toLowerCase() === cat.name.toLowerCase() ||
+                p.category.toLowerCase() === cat.slug.toLowerCase(),
+            ).length;
+            const isSelected =
+              selectedCategory?.toLowerCase() === cat.name.toLowerCase() ||
+              selectedCategory?.toLowerCase() === cat.slug.toLowerCase();
             return (
-              <li key={cat}>
+              <li key={cat.slug}>
                 <button
-                  onClick={() => updateFilters({ category: isSelected ? undefined : cat })}
+                  onClick={() => updateFilters({ category: isSelected ? undefined : cat.name })}
                   className={cn(
                     "w-full text-left py-1 transition-colors flex justify-between items-center",
                     isSelected ? "font-bold text-white" : "text-zinc-400 hover:text-white",
                   )}
                 >
-                  <span>{cat}</span>
+                  <span>{cat.name}</span>
                   <span className="text-xs bg-white/10 px-1.5 py-0.5 rounded text-white">
                     {count}
                   </span>
@@ -194,12 +239,12 @@ function ShopPage() {
       <div className="border-t border-white/10 pt-6">
         <h3 className="eyebrow text-white mb-4">Fit Size</h3>
         <div className="grid grid-cols-3 gap-2">
-          {ALL_SIZES.map((sz) => {
-            const isSelected = selectedSize === sz;
+          {sizesList.map((sz) => {
+            const isSelected = selectedSize === sz.code;
             return (
               <button
-                key={sz}
-                onClick={() => updateFilters({ size: isSelected ? undefined : sz })}
+                key={sz.code}
+                onClick={() => updateFilters({ size: isSelected ? undefined : sz.code })}
                 className={cn(
                   "py-2 text-xs font-semibold uppercase border transition-colors",
                   isSelected
@@ -207,7 +252,7 @@ function ShopPage() {
                     : "border-white/15 text-zinc-400 hover:border-white/40 hover:text-white",
                 )}
               >
-                {sz}
+                {sz.code}
               </button>
             );
           })}
@@ -294,7 +339,7 @@ function ShopPage() {
             </Sheet>
 
             <span className="text-xs font-medium text-zinc-400 uppercase tracking-widest">
-              Showing {filteredProducts.length} of {products.length} Trinity Pieces
+              Showing {filteredProducts.length} of {allProducts.length} Trinity Pieces
             </span>
           </div>
 

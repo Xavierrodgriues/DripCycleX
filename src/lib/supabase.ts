@@ -57,6 +57,15 @@ export function initSupabaseRealtimeSubscription() {
       .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, (payload) => {
         broadcastSync("USER_REGISTERED", payload);
       })
+      .on("postgres_changes", { event: "*", schema: "public", table: "categories" }, (payload) => {
+        broadcastSync("CATEGORIES_UPDATED", payload);
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "sizes" }, (payload) => {
+        broadcastSync("SIZES_UPDATED", payload);
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "products" }, (payload) => {
+        broadcastSync("PRODUCTS_UPDATED", payload);
+      })
       .subscribe((status) => {
         if (status === "SUBSCRIBED") {
           console.log(

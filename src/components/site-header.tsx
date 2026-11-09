@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   Heart,
@@ -22,7 +22,8 @@ import {
   SheetClose,
 } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
-import { formatPrice, products } from "@/data/products";
+import { formatPrice, getLiveProducts, FALLBACK_PRODUCT_IMAGE } from "@/data/products";
+import { useRealtimeSync, type SyncPayload } from "@/lib/sync-channel";
 import { useShop } from "@/lib/shop-store";
 import { useAuth } from "@/lib/auth-store";
 import { initiateWhatsAppCheckout } from "@/lib/whatsapp";
@@ -57,10 +58,20 @@ export function SiteHeader() {
 
   useEffect(() => setMenuOpen(false), [pathname]);
 
+  const [liveProducts, setLiveProducts] = useState(getLiveProducts);
+
+  useRealtimeSync(
+    useCallback((payload: SyncPayload) => {
+      if (payload.type === "PRODUCTS_UPDATED" || !payload.type) {
+        setLiveProducts(getLiveProducts());
+      }
+    }, []),
+  );
+
   const results = query.trim()
-    ? products.filter((p) => p.name.toLowerCase().includes(query.trim().toLowerCase()))
+    ? liveProducts.filter((p) => p.name.toLowerCase().includes(query.trim().toLowerCase()))
     : [];
-  const wishedProducts = products.filter((p) => wishlist.includes(p.slug));
+  const wishedProducts = liveProducts.filter((p) => wishlist.includes(p.slug));
 
   const handleProceedToCheckout = () => {
     if (cart.length === 0) return;
@@ -155,7 +166,7 @@ export function SiteHeader() {
                           className="flex items-center gap-3 py-3 transition-colors hover:bg-white/5 px-2 rounded"
                         >
                           <img
-                            src={p.images[0]}
+                            src={(p.images && p.images[0]) || FALLBACK_PRODUCT_IMAGE}
                             alt=""
                             className="h-14 w-11 object-cover border border-white/10"
                           />
@@ -217,7 +228,7 @@ export function SiteHeader() {
                       {wishedProducts.map((p) => (
                         <li key={p.id} className="flex items-center gap-3 py-4">
                           <img
-                            src={p.images[0]}
+                            src={(p.images && p.images[0]) || FALLBACK_PRODUCT_IMAGE}
                             alt=""
                             className="h-20 w-16 object-cover border border-white/10"
                           />
@@ -398,7 +409,7 @@ export function SiteHeader() {
                               className="flex items-center gap-3 rounded p-2 transition-colors hover:bg-white/5"
                             >
                               <img
-                                src={p.images[0]}
+                                src={(p.images && p.images[0]) || FALLBACK_PRODUCT_IMAGE}
                                 alt=""
                                 className="h-12 w-10 rounded object-cover border border-white/10"
                               />
