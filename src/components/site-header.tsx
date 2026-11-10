@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   Heart,
@@ -23,22 +23,14 @@ import {
   SheetClose,
 } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
-import { formatPrice, getLiveProducts, FALLBACK_PRODUCT_IMAGE } from "@/data/products";
+import { formatPrice, getLiveProducts, FALLBACK_PRODUCT_IMAGE, type CategoryItem } from "@/data/products";
 import { useRealtimeSync, type SyncPayload } from "@/lib/sync-channel";
+import { getCachedCategories, fetchCategories } from "@/lib/taxonomy-service";
 import { useShop } from "@/lib/shop-store";
 import { useAuth } from "@/lib/auth-store";
 import { initiateWhatsAppCheckout } from "@/lib/whatsapp";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-
-const NAV = [
-  { label: "Trinity Drop", to: "/shop" as const },
-  { label: "Tees", to: "/shop" as const, search: { category: "T-Shirts" } },
-  { label: "Hoodies", to: "/shop" as const, search: { category: "Hoodies" } },
-  { label: "Jackets", to: "/shop" as const, search: { category: "Jackets" } },
-  { label: "Philosophy", to: "/about" as const },
-  { label: "Contact", to: "/contact" as const },
-];
 
 export function SiteHeader() {
   const [scrolled, setScrolled] = useState(false);
@@ -69,14 +61,42 @@ export function SiteHeader() {
   useEffect(() => setMenuOpen(false), [pathname]);
 
   const [liveProducts, setLiveProducts] = useState(getLiveProducts);
+  const [categoriesList, setCategoriesList] = useState<CategoryItem[]>(getCachedCategories);
+
+  useEffect(() => {
+    fetchCategories().then((cats) => {
+      if (cats && cats.length > 0) setCategoriesList(cats);
+    });
+  }, []);
 
   useRealtimeSync(
     useCallback((payload: SyncPayload) => {
       if (payload.type === "PRODUCTS_UPDATED" || !payload.type) {
         setLiveProducts(getLiveProducts());
       }
+      if (payload.type === "CATEGORIES_UPDATED" || !payload.type) {
+        setCategoriesList(getCachedCategories());
+        fetchCategories().then((cats) => {
+          if (cats && cats.length > 0) setCategoriesList(cats);
+        });
+      }
     }, []),
   );
+
+  // Dynamic Navigation derived from live Supabase categories table
+  const navItems = useMemo<Array<{ label: string; to: string; search?: { category: string } }>>(() => {
+    const activeCats = categoriesList.filter((c) => c.is_active !== false);
+    return [
+      { label: "Trinity Drop", to: "/shop" },
+      ...activeCats.map((cat) => ({
+        label: cat.name,
+        to: "/shop",
+        search: { category: cat.name },
+      })),
+      { label: "Philosophy", to: "/about" },
+      { label: "Contact", to: "/contact" },
+    ];
+  }, [categoriesList]);
 
   const results = query.trim()
     ? liveProducts.filter((p) => p.name.toLowerCase().includes(query.trim().toLowerCase()))
@@ -128,13 +148,13 @@ export function SiteHeader() {
             </span>
           </Link>
 
-          {/* Desktop Navigation */}
-          <nav className="hidden items-center justify-center gap-8 lg:flex">
-            {NAV.map((item) => (
+          {/* Desktop Navigation (Live categories from Supabase) */}
+          <nav className="hidden items-center justify-center gap-6 xl:gap-8 lg:flex flex-wrap">
+            {navItems.map((item) => (
               <Link
                 key={item.label}
                 to={item.to}
-                search={item.search as never}
+                search={("search" in item ? item.search : undefined) as never}
                 className="relative text-[12px] font-bold tracking-[0.18em] text-zinc-300 uppercase transition-colors hover:text-white after:absolute after:-bottom-1.5 after:left-0 after:h-0.5 after:w-full after:origin-right after:scale-x-0 after:bg-white after:transition-transform after:duration-300 hover:after:origin-left hover:after:scale-x-100"
               >
                 {item.label}
@@ -164,7 +184,7 @@ export function SiteHeader() {
                     autoFocus
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
-                    placeholder="Search tees, hoodies, bombers…"
+                    placeholder="Search products, silhouettes…"
                     className="h-12 border-white/20 bg-black text-white text-base placeholder:text-zinc-500 focus-visible:ring-white"
                   />
                   <ul className="mt-4 divide-y divide-white/10">
@@ -528,7 +548,7 @@ export function SiteHeader() {
                     <Input
                       value={query}
                       onChange={(e) => setQuery(e.target.value)}
-                      placeholder="Search tees, hoodies, bombers…"
+                      placeholder="Search products, silhouettes…"
                       className="h-11 w-full rounded-md border border-white/15 bg-zinc-900/90 pl-10 pr-4 text-sm text-white placeholder:text-zinc-500 focus-visible:ring-1 focus-visible:ring-white"
                     />
                     {results.length > 0 && (
@@ -588,11 +608,11 @@ export function SiteHeader() {
 
                   {/* Navigation Links */}
                   <nav className="flex flex-col divide-y divide-white/10">
-                    {NAV.map((item) => (
+                    {navItems.map((item) => (
                       <Link
                         key={item.label}
                         to={item.to}
-                        search={item.search as never}
+                        search={("search" in item ? item.search : undefined) as never}
                         onClick={() => setMenuOpen(false)}
                         className="group flex items-center justify-between py-4 text-2xl sm:text-3xl display-xl font-black uppercase tracking-tight text-white transition-colors hover:text-zinc-300"
                       >

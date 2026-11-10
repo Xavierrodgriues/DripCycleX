@@ -808,9 +808,22 @@ export async function fetchProducts(includeArchived: boolean = false): Promise<P
     }
 
     if (data && data.length > 0) {
-      const categories = getCachedCategories();
+      let categories = getCachedCategories();
+      try {
+        const freshCats = await fetchCategories();
+        if (freshCats && freshCats.length > 0) {
+          categories = freshCats;
+        }
+      } catch {
+        /* fallback to cached categories */
+      }
+
       const mapped: Product[] = data.map((row) => {
-        const catMatch = categories.find((c) => c.slug === row.category_slug);
+        const catMatch = categories.find(
+          (c) =>
+            c.slug.toLowerCase() === (row.category_slug || "").toLowerCase() ||
+            c.name.toLowerCase() === (row.category_slug || "").toLowerCase(),
+        );
         const resolvedCategory =
           catMatch?.name ||
           (row.category_slug
@@ -818,7 +831,7 @@ export async function fetchProducts(includeArchived: boolean = false): Promise<P
                 .split("-")
                 .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1))
                 .join(" ")
-            : "T-Shirts");
+            : "Silhouettes");
 
         return {
           id: row.id,
@@ -852,9 +865,10 @@ export async function fetchProducts(includeArchived: boolean = false): Promise<P
 
       // Synchronize localStorage cache with the fresh database records directly
       try {
-        if (includeArchived) {
-          localStorage.setItem(PRODUCTS_STORAGE_KEY, JSON.stringify(mapped));
-        }
+        const existing = getCachedProducts(true);
+        const existingArchived = existing.filter((p) => p.isActive === false);
+        const combined = includeArchived ? mapped : [...mapped, ...existingArchived];
+        localStorage.setItem(PRODUCTS_STORAGE_KEY, JSON.stringify(combined));
       } catch {
         /* ignore */
       }

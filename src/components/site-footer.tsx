@@ -1,28 +1,56 @@
 import { Link } from "@tanstack/react-router";
 import { Instagram, Facebook } from "lucide-react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { DripcycleXLogo } from "@/components/logo";
-
-const columns = [
-  {
-    title: "The Drop",
-    links: [
-      { label: "Trinity Drop Showcase", to: "/shop" as const },
-      { label: "Heavyweight Tees", to: "/shop" as const, search: { category: "T-Shirts" } },
-      { label: "Signature Hoodies", to: "/shop" as const, search: { category: "Hoodies" } },
-      { label: "Matte Bombers", to: "/shop" as const, search: { category: "Jackets" } },
-    ],
-  },
-  {
-    title: "Brand",
-    links: [
-      { label: "About DRIPCYCLEX", to: "/about" as const },
-      { label: "Philosophy & Craft", to: "/about" as const },
-      { label: "Client Support", to: "/contact" as const },
-    ],
-  },
-];
+import { getCachedCategories, fetchCategories } from "@/lib/taxonomy-service";
+import { useRealtimeSync, type SyncPayload } from "@/lib/sync-channel";
+import type { CategoryItem } from "@/data/products";
 
 export function SiteFooter() {
+  const [categoriesList, setCategoriesList] = useState<CategoryItem[]>(getCachedCategories);
+
+  useEffect(() => {
+    fetchCategories().then((cats) => {
+      if (cats && cats.length > 0) setCategoriesList(cats);
+    });
+  }, []);
+
+  useRealtimeSync(
+    useCallback((payload: SyncPayload) => {
+      if (payload.type === "CATEGORIES_UPDATED" || !payload.type) {
+        setCategoriesList(getCachedCategories());
+        fetchCategories().then((cats) => {
+          if (cats && cats.length > 0) setCategoriesList(cats);
+        });
+      }
+    }, []),
+  );
+
+  const dynamicColumns = useMemo(() => {
+    const activeCats = categoriesList.filter((c) => c.is_active !== false);
+    return [
+      {
+        title: "The Drop",
+        links: [
+          { label: "Trinity Drop Showcase", to: "/shop" as const },
+          ...activeCats.map((cat) => ({
+            label: cat.name,
+            to: "/shop" as const,
+            search: { category: cat.name },
+          })),
+        ],
+      },
+      {
+        title: "Brand",
+        links: [
+          { label: "About DRIPCYCLEX", to: "/about" as const },
+          { label: "Philosophy & Craft", to: "/about" as const },
+          { label: "Client Support", to: "/contact" as const },
+        ],
+      },
+    ];
+  }, [categoriesList]);
+
   return (
     <footer className="mt-24 border-t border-white/10 bg-black text-white">
       <div className="mx-auto max-w-[1400px] px-5 py-16 sm:px-8 lg:px-12">
@@ -61,7 +89,7 @@ export function SiteFooter() {
             </div>
           </div>
 
-          {columns.map((col) => (
+          {dynamicColumns.map((col) => (
             <div key={col.title}>
               <p className="eyebrow text-white font-bold">{col.title}</p>
               <ul className="mt-5 space-y-3 text-sm text-zinc-400">

@@ -78,6 +78,9 @@ function ShopPage() {
       }
       if (payload.type === "CATEGORIES_UPDATED") {
         setCategoriesList(getCachedCategories());
+        fetchCategories().then((cats) => {
+          if (cats && cats.length > 0) setCategoriesList(cats);
+        });
       }
       if (payload.type === "SIZES_UPDATED") {
         setSizesList(getCachedSizes());
@@ -109,7 +112,18 @@ function ShopPage() {
     let list = [...allProducts];
 
     if (selectedCategory) {
-      list = list.filter((p) => p.category.toLowerCase() === selectedCategory.toLowerCase());
+      const matchCat = categoriesList.find(
+        (c) =>
+          c.name.toLowerCase() === selectedCategory.toLowerCase() ||
+          c.slug.toLowerCase() === selectedCategory.toLowerCase(),
+      );
+      const targetName = matchCat ? matchCat.name.toLowerCase() : selectedCategory.toLowerCase();
+      const targetSlug = matchCat ? matchCat.slug.toLowerCase() : selectedCategory.toLowerCase();
+
+      list = list.filter((p) => {
+        const prodCat = (p.category || "").toLowerCase();
+        return prodCat === targetName || prodCat === targetSlug;
+      });
     }
 
     if (selectedColor) {
@@ -153,7 +167,7 @@ function ShopPage() {
     }
 
     return list;
-  }, [allProducts, selectedCategory, selectedColor, selectedSize, selectedSort, searchQuery, maxPrice]);
+  }, [allProducts, selectedCategory, selectedColor, selectedSize, selectedSort, searchQuery, maxPrice, categoriesList]);
 
   const updateFilters = (newParams: Record<string, string | number | undefined>) => {
     navigate({
@@ -199,7 +213,9 @@ function ShopPage() {
               </span>
             </button>
           </li>
-          {categoriesList.map((cat) => {
+          {categoriesList
+            .filter((cat) => cat.is_active !== false)
+            .map((cat) => {
             const count = allProducts.filter(
               (p) =>
                 p.category.toLowerCase() === cat.name.toLowerCase() ||
@@ -318,6 +334,27 @@ function ShopPage() {
     </div>
   );
 
+  const activeCategoryItem = useMemo(() => {
+    if (!selectedCategory) return undefined;
+    return categoriesList.find(
+      (c) =>
+        c.name.toLowerCase() === selectedCategory.toLowerCase() ||
+        c.slug.toLowerCase() === selectedCategory.toLowerCase(),
+    );
+  }, [categoriesList, selectedCategory]);
+
+  const displayCategoryTitle = activeCategoryItem
+    ? `${activeCategoryItem.name.toUpperCase()} DROP`
+    : selectedCategory
+      ? `${selectedCategory.toUpperCase()} DROP`
+      : allProducts.length > 0
+        ? `THE ${allProducts.length}-PIECE SHOWCASE`
+        : "THE DROP SHOWCASE";
+
+  const displayCategoryDescription =
+    activeCategoryItem?.description ||
+    "A pure architectural study in dark luxury streetwear. Milled heavyweight cottons, custom trims, and zero filler.";
+
   return (
     <div className="min-h-screen bg-black text-white pb-20 min-w-0 w-full max-w-full overflow-x-clip">
       {/* Header Banner */}
@@ -328,11 +365,10 @@ function ShopPage() {
             <span className="eyebrow text-zinc-400 font-bold">DRIPCYCLEX TRINITY CAPSULE</span>
           </div>
           <h1 className="display-xl mt-2 text-3xl sm:text-5xl lg:text-6xl text-white break-words">
-            {selectedCategory ? `${selectedCategory.toUpperCase()} DROP` : "THE 3-PIECE SHOWCASE"}
+            {displayCategoryTitle}
           </h1>
           <p className="mt-3 text-xs sm:text-sm text-zinc-400 max-w-xl">
-            A pure architectural study in black & white. Three cornerstone pieces: Heavyweight Cyber
-            Tee, Signature Stealth Hoodie, and Tactical Matte Bomber.
+            {displayCategoryDescription}
           </p>
         </div>
       </div>
@@ -391,7 +427,7 @@ function ShopPage() {
             <span className="text-xs text-zinc-500 mr-1">Active filters:</span>
             {selectedCategory && (
               <span className="inline-flex items-center gap-1.5 border border-white/20 bg-white/10 text-white px-3 py-1 text-xs font-semibold uppercase">
-                {selectedCategory}
+                {activeCategoryItem?.name || selectedCategory}
                 <X
                   className="h-3.5 w-3.5 cursor-pointer hover:text-red-400"
                   onClick={() => updateFilters({ category: undefined })}
