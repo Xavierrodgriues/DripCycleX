@@ -67,6 +67,7 @@ import {
   getCachedProducts,
 } from "@/lib/taxonomy-service";
 import { useShop } from "@/lib/shop-store";
+import { supabase } from "@/lib/supabase";
 import {
   useAuth,
   type CustomerUser,
@@ -337,15 +338,8 @@ function AdminDashboard({
   // Products State (loads both Active and Archived silhouettes for complete administrative oversight)
   const [productsList, setProductsList] = useState<Product[]>(() => getCachedProducts(true));
 
-  // REAL Users State (Starts EMPTY if no user has registered yet)
-  const [usersList, setUsersList] = useState<CustomerUser[]>(() => {
-    try {
-      const saved = localStorage.getItem("dripcyclex.users");
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
+  // REAL Users State (Synchronized directly with Supabase profiles via Auth store)
+  const [usersList, setUsersList] = useState<CustomerUser[]>(() => authUsers);
 
   // Modals
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -431,15 +425,10 @@ function AdminDashboard({
     });
   }, [realtimeTick]);
 
-  // Sync users whenever auth store changes or realtime stream emits
+  // Sync users whenever auth store changes (populated directly from Supabase profiles)
   useEffect(() => {
-    try {
-      const savedUsers = localStorage.getItem("dripcyclex.users");
-      setUsersList(savedUsers ? JSON.parse(savedUsers) : []);
-    } catch {
-      /* ignore */
-    }
-  }, [authUsers, realtimeTick]);
+    setUsersList(authUsers);
+  }, [authUsers]);
 
   // Save products modifications
   useEffect(() => {
@@ -1241,11 +1230,6 @@ function AdminDashboard({
     );
 
     setUsersList(updated);
-    try {
-      localStorage.setItem("dripcyclex.users", JSON.stringify(updated));
-    } catch {
-      /* ignore */
-    }
 
     // Update in Supabase, update auth store, terminate session if active, and broadcast sync across tabs
     await setUserStatus(id, newStatus);
@@ -1263,14 +1247,13 @@ function AdminDashboard({
     }
   };
 
-  const handleDeleteUser = (id: string, name: string) => {
+  const handleDeleteUser = async (id: string, name: string) => {
     if (confirm(`Remove user ${name}?`)) {
-      const updated = usersList.filter((u) => u.id !== id);
-      setUsersList(updated);
+      setUsersList((prev) => prev.filter((u) => u.id !== id));
       try {
-        localStorage.setItem("dripcyclex.users", JSON.stringify(updated));
-      } catch {
-        /* ignore */
+        await supabase.from("profiles").delete().eq("id", id);
+      } catch (err) {
+        console.warn("Delete profile notice:", err);
       }
       toast.error(`User ${name} removed.`, {
         id: `delete-user-${id}`,
@@ -1278,24 +1261,83 @@ function AdminDashboard({
     }
   };
 
-  const handleAddUser = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleAddUser = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
+    const name = (fd.get("name") as string) || "New Client";
+    const email = (fd.get("email") as string) || "client@dripcyclex.com";
+    const rawPhone = (fd.get("phone") as string) || "";
+    const cleanPhone = rawPhone.replace(/\D/g, "").slice(0, 10);
+    const address = (fd.get("address") as string) || "Main Avenue";
+    const city = (fd.get("city") as string) || "Mumbai";
+    const zipCode = (fd.get("zipCode") as string) || "400050";
+
+    if (cleanPhone.length !== 10) {
+      toast.error("Invalid Contact Number", {
+        description: "Contact number must be exactly 10 digits without country code or special characters.",
+      });
+      return;
+    }
+
+    const cleanEmail = email.toLowerCase().trim();
+
+    // Check uniqueness of email and phone before inserting
+    const { data: existingProfiles } = await supabase
+      .from("profiles")
+      .select("id, email, phone")
+      .or(`email.eq.${cleanEmail},phone.eq.${cleanPhone}`)
+      .limit(1);
+
+    if (existingProfiles && existingProfiles.length > 0 && existingProfiles[0]) {
+      const match = existingProfiles[0];
+      const isEmailMatch = match.email === cleanEmail;
+      toast.error("User Already Registered", {
+        description: isEmailMatch
+          ? "A customer with this email address already exists."
+          : "A customer with this 10-digit contact number already exists.",
+      });
+      return;
+    }
+
+    const newId = `usr-${Date.now().toString().slice(-6)}`;
+    const newProfile = {
+      id: newId,
+      full_name: name,
+      email: cleanEmail,
+      phone: cleanPhone,
+      role: "customer",
+      status: "active",
+      shipping_address: {
+        address_line1: address,
+        address_line2: "",
+        city,
+        state: "Maharashtra",
+        postal_code: zipCode,
+        country: "India",
+      },
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    try {
+      await supabase.from("profiles").upsert(newProfile);
+    } catch (err) {
+      console.warn("Could not insert profile:", err);
+    }
+
     const newUser: CustomerUser = {
-      id: `usr-${Date.now().toString().slice(-6)}`,
-      name: (fd.get("name") as string) || "New Client",
-      email: (fd.get("email") as string) || "client@dripcyclex.com",
-      phone: (fd.get("phone") as string) || "+91 84697 11940",
-      address: (fd.get("address") as string) || "Main Avenue",
-      city: (fd.get("city") as string) || "Mumbai",
+      id: newId,
+      name,
+      email: cleanEmail,
+      phone: cleanPhone,
+      address,
+      city,
       state: "Maharashtra",
-      zipCode: (fd.get("zipCode") as string) || "400050",
+      zipCode,
       registeredAt: new Date().toISOString().slice(0, 10),
       status: "active",
     };
-    const updated = [newUser, ...usersList];
-    setUsersList(updated);
-    localStorage.setItem("dripcyclex.users", JSON.stringify(updated));
+    setUsersList((prev) => [newUser, ...prev.filter((u) => u.id !== newId)]);
     setIsAddUserOpen(false);
     toast.success("User Registered", { description: `${newUser.name} created.` });
   };
@@ -4057,15 +4099,28 @@ function AdminDashboard({
                 </div>
 
                 <div>
-                  <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
-                    Contact Phone *
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-zinc-400 uppercase font-bold tracking-wider">
+                      Contact Phone (10 Digits) *
+                    </label>
+                    <span className="text-[10px] text-zinc-500 font-mono">10 digits</span>
+                  </div>
                   <input
                     name="phone"
                     required
-                    placeholder="+91 98765 43210"
-                    className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded focus:border-white focus:outline-none"
+                    maxLength={10}
+                    inputMode="numeric"
+                    pattern="[0-9]{10}"
+                    placeholder="9876543210"
+                    onInput={(e) => {
+                      const input = e.currentTarget;
+                      input.value = input.value.replace(/\D/g, "").slice(0, 10);
+                    }}
+                    className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded focus:border-white focus:outline-none font-mono tracking-wider"
                   />
+                  <p className="text-[10px] text-zinc-500 mt-0.5">
+                    Enter strictly 10 digits without +91 or special characters.
+                  </p>
                 </div>
 
                 <div>

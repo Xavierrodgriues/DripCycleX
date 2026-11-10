@@ -275,14 +275,21 @@ function ContactPage() {
               <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-wider text-zinc-300 mb-2">
-                    Phone Number
+                    Phone Number (10 Digits)
                   </label>
                   <input
                     type="tel"
+                    maxLength={10}
+                    inputMode="numeric"
                     value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    placeholder="+91 84697 11940"
-                    className="h-11 w-full border border-white/15 bg-black px-4 text-sm text-white placeholder:text-zinc-600 focus:border-white focus:outline-none"
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        phone: e.target.value.replace(/\D/g, "").slice(0, 10),
+                      })
+                    }
+                    placeholder="9876543210"
+                    className="h-11 w-full border border-white/15 bg-black px-4 text-sm text-white placeholder:text-zinc-600 focus:border-white focus:outline-none font-mono"
                   />
                 </div>
                 <div>

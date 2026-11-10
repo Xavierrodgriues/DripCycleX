@@ -60,7 +60,14 @@ interface AuthContextType {
   register: (
     data: Omit<CustomerUser, "id" | "registeredAt" | "status">,
     password: string,
-  ) => Promise<boolean>;
+  ) => Promise<{ success: boolean; requiresEmailVerification?: boolean; error?: string }>;
+  verifyEmailOtp: (
+    email: string,
+    token: string,
+  ) => Promise<{ success: boolean; error?: string }>;
+  resendEmailOtp: (
+    email: string,
+  ) => Promise<{ success: boolean; error?: string }>;
   login: (emailOrPhone: string, password: string) => Promise<boolean>;
   loginWithPhoneOtp: (phone: string, otp: string) => Promise<boolean>;
   logout: () => Promise<void>;
@@ -77,11 +84,20 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-const USERS_KEY = "dripcyclex.users";
-const PASSWORDS_KEY = "dripcyclex.user_passwords";
-const CURRENT_USER_KEY = "dripcyclex.currentUser";
 const CARTS_KEY = "dripcyclex.admin.carts";
 const WISHLISTS_KEY = "dripcyclex.admin.wishlists";
+
+// Purge any legacy localhost password / user cache from browser on initialization
+if (typeof window !== "undefined") {
+  try {
+    localStorage.removeItem("dripcyclex.users");
+    localStorage.removeItem("dripcyclex.user_passwords");
+    localStorage.removeItem("dripcyclex.passwords");
+    localStorage.removeItem("dripcyclex.currentUser");
+  } catch {
+    /* ignore */
+  }
+}
 
 interface ShippingAddressShape {
   address_line1?: string | undefined;
@@ -214,61 +230,24 @@ async function fetchAndSyncProfile(supabaseUser: SupabaseUser): Promise<Customer
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [users, setUsers] = useState<CustomerUser[]>(() => {
-    try {
-      const saved = localStorage.getItem(USERS_KEY);
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
+  // Users list is strictly synchronized with Supabase public.profiles
+  const [users, setUsers] = useState<CustomerUser[]>([]);
 
-  const [currentUser, setCurrentUser] = useState<CustomerUser | null>(() => {
-    try {
-      const saved = localStorage.getItem(CURRENT_USER_KEY);
-      if (!saved) return null;
-      const parsed: CustomerUser = JSON.parse(saved);
-      if (parsed.status === "suspended") {
-        localStorage.removeItem(CURRENT_USER_KEY);
-        return null;
-      }
-      return parsed;
-    } catch {
-      return null;
-    }
-  });
-
-  // Sync users to localStorage
-  useEffect(() => {
-    localStorage.setItem(USERS_KEY, JSON.stringify(users));
-  }, [users]);
-
-  // Sync currentUser to localStorage
-  useEffect(() => {
-    if (currentUser) {
-      if (currentUser.status === "suspended") {
-        localStorage.removeItem(CURRENT_USER_KEY);
-        setCurrentUser(null);
-      } else {
-        localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(currentUser));
-      }
-    } else {
-      localStorage.removeItem(CURRENT_USER_KEY);
-    }
-  }, [currentUser]);
+  // Current user is strictly driven by Supabase Auth session
+  const [currentUser, setCurrentUser] = useState<CustomerUser | null>(null);
 
   // Supabase Auth listener & Session Hydration
   useEffect(() => {
     if (!isSupabaseConfigured) return;
 
-    // 1. Initial Session Check
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    // 1. Initial Session Check directly from Supabase Auth
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session?.user) {
-        fetchAndSyncProfile(session.user).then((cUser) => {
+        try {
+          const cUser = await fetchAndSyncProfile(session.user);
           if (cUser.status === "suspended") {
-            void supabase.auth.signOut();
+            await supabase.auth.signOut();
             setCurrentUser(null);
-            localStorage.removeItem(CURRENT_USER_KEY);
             toast.error("Account Suspended", {
               description: "Your account has been suspended by administration. Access is blocked.",
               duration: 8000,
@@ -277,7 +256,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
           setCurrentUser(cUser);
           setUsers((prev) => [cUser, ...prev.filter((u) => u.id !== cUser.id)]);
-        });
+        } catch {
+          setCurrentUser(null);
+        }
+      } else {
+        // No active session in Supabase (or user was deleted from Supabase)
+        setCurrentUser(null);
       }
     });
 
@@ -286,20 +270,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       if ((event === "SIGNED_IN" || event === "TOKEN_REFRESHED") && session?.user) {
-        const cUser = await fetchAndSyncProfile(session.user);
-        if (cUser.status === "suspended") {
-          await supabase.auth.signOut();
+        try {
+          const cUser = await fetchAndSyncProfile(session.user);
+          if (cUser.status === "suspended") {
+            await supabase.auth.signOut();
+            setCurrentUser(null);
+            toast.error("Account Suspended", {
+              description: "Your account has been suspended by administration. Access is blocked.",
+              duration: 8000,
+            });
+            return;
+          }
+          setCurrentUser(cUser);
+          setUsers((prev) => [cUser, ...prev.filter((u) => u.id !== cUser.id)]);
+        } catch {
           setCurrentUser(null);
-          localStorage.removeItem(CURRENT_USER_KEY);
-          toast.error("Account Suspended", {
-            description: "Your account has been suspended by administration. Access is blocked.",
-            duration: 8000,
-          });
-          return;
         }
-        setCurrentUser(cUser);
-        setUsers((prev) => [cUser, ...prev.filter((u) => u.id !== cUser.id)]);
-      } else if (event === "SIGNED_OUT") {
+      } else if (event === "SIGNED_OUT" || !session) {
         setCurrentUser(null);
       }
     });
@@ -307,17 +294,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // 3. Hydrate remote profiles from Supabase into users list
     const loadRemoteProfiles = async () => {
       try {
-        const { data: remoteProfiles } = await supabase.from("profiles").select("*");
+        const { data: remoteProfiles } = await supabase
+          .from("profiles")
+          .select("*")
+          .order("created_at", { ascending: false });
         if (remoteProfiles && remoteProfiles.length > 0) {
           const mapped = remoteProfiles.map((p: ProfileRow) => mapProfileToCustomer(p));
-          setUsers((prev) => {
-            const map = new Map<string, CustomerUser>();
-            mapped.forEach((u) => map.set(u.id, u));
-            prev.forEach((u) => {
-              if (!map.has(u.id)) map.set(u.id, u);
-            });
-            return Array.from(map.values());
-          });
+          setUsers(mapped);
         }
       } catch (err: unknown) {
         console.warn("Remote profiles sync warning:", err);
@@ -335,13 +318,58 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async (
       userData: Omit<CustomerUser, "id" | "registeredAt" | "status">,
       password: string,
-    ): Promise<boolean> => {
+    ): Promise<{ success: boolean; requiresEmailVerification?: boolean; error?: string }> => {
       try {
         const cleanEmail = userData.email.toLowerCase().trim();
-        const cleanPhone = userData.phone.trim();
+        const cleanPhone = userData.phone.replace(/\D/g, "").slice(0, 10);
+
+        // Enforce exactly 10 digits without country code or special characters
+        if (cleanPhone.length !== 10) {
+          toast.error("Invalid Contact Number", {
+            description: "Contact number must be strictly 10 digits without country code or special characters.",
+          });
+          return {
+            success: false,
+            error: "Contact number must be strictly 10 digits without country code.",
+          };
+        }
 
         if (isSupabaseConfigured) {
-          // 1. Supabase Auth signup
+          // 1. Verify Uniqueness of Email in database
+          const { data: existingEmail } = await supabase
+            .from("profiles")
+            .select("id")
+            .eq("email", cleanEmail)
+            .maybeSingle();
+
+          if (existingEmail) {
+            toast.error("Email Already Registered", {
+              description: "An account with this email address already exists. Please sign in instead.",
+            });
+            return {
+              success: false,
+              error: "This email address is already registered.",
+            };
+          }
+
+          // 2. Verify Uniqueness of Contact Number in database
+          const { data: existingPhone } = await supabase
+            .from("profiles")
+            .select("id, phone")
+            .or(`phone.eq.${cleanPhone},phone.eq.+91${cleanPhone},phone.eq.+91 ${cleanPhone}`)
+            .limit(1);
+
+          if (existingPhone && existingPhone.length > 0) {
+            toast.error("Contact Number Already Registered", {
+              description: "A customer with this 10-digit contact number already exists. Please sign in or use another number.",
+            });
+            return {
+              success: false,
+              error: "This contact number is already registered to another account.",
+            };
+          }
+
+          // 3. Supabase Auth signup (dispatches verification email via custom Resend SMTP no-reply@dripcyclex.in)
           const { data: authData, error: authError } = await supabase.auth.signUp({
             email: cleanEmail,
             password,
@@ -367,10 +395,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           });
 
           if (authError) {
+            const isDuplicate =
+              authError.message.toLowerCase().includes("already registered") ||
+              authError.message.toLowerCase().includes("already exists");
+            const errorDescription = isDuplicate
+              ? "This email address is already registered. Please sign in."
+              : authError.message;
+
             toast.error("Registration Failed", {
-              description: authError.message,
+              description: errorDescription,
             });
-            return false;
+            return { success: false, error: errorDescription };
           }
 
           const sbUser = authData.user;
@@ -378,7 +413,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             toast.error("Registration Incomplete", {
               description: "No user returned from authentication service.",
             });
-            return false;
+            return { success: false, error: "No user returned." };
+          }
+
+          // If email confirmation is enabled and user already exists, Supabase returns empty identities array
+          if (sbUser.identities && sbUser.identities.length === 0) {
+            toast.error("Email Already Registered", {
+              description: "An account with this email address already exists. Please sign in instead.",
+            });
+            return {
+              success: false,
+              error: "This email address is already registered.",
+            };
           }
 
           // 2. Ensure profile is stored in public.profiles table
@@ -388,6 +434,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             full_name: userData.name,
             phone: cleanPhone,
             role: "customer",
+            status: "active",
             shipping_address: {
               address_line1: userData.address,
               address_line2: "",
@@ -412,105 +459,136 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             status: "active",
           };
 
-          setUsers((prev) => {
-            const next = [newUser, ...prev.filter((u) => u.email !== cleanEmail)];
-            try {
-              localStorage.setItem(USERS_KEY, JSON.stringify(next));
-            } catch (e) {
-              console.warn("Storage sync notice:", e);
-            }
-            return next;
-          });
+          // If Supabase has email confirmation enabled (!authData.session), customer must verify via OTP or link
+          if (!authData.session) {
+            toast.info("Verification Code Sent", {
+              description: `Confirmation email has been sent to ${cleanEmail} from no-reply@dripcyclex.in.`,
+            });
+            return { success: true, requiresEmailVerification: true };
+          }
+
+          // If session is already active
+          setUsers((prev) => [newUser, ...prev.filter((u) => u.email !== cleanEmail)]);
           setCurrentUser(newUser);
 
-          // Cache credentials locally so user can always log in with phone or email on this device
-          try {
-            const passwords: StoredUserCredential[] = JSON.parse(
-              localStorage.getItem(PASSWORDS_KEY) || "[]",
-            );
-            const nextPasswords = [
-              ...passwords.filter((p) => p.email !== cleanEmail && p.phone !== cleanPhone),
-              {
-                email: cleanEmail,
-                phone: cleanPhone,
-                password,
-                userId: sbUser.id,
-              },
-            ];
-            localStorage.setItem(PASSWORDS_KEY, JSON.stringify(nextPasswords));
-          } catch (e) {
-            console.warn("Local password cache notice:", e);
-          }
-
-          if (!authData.session) {
-            toast.success("Account Registered!", {
-              description: `Verification email sent to ${cleanEmail}. Please verify or sign in.`,
-            });
-          } else {
-            toast.success("Welcome to DRIPCYCLEX", {
-              description: `Account created for ${newUser.name}. You are signed in.`,
-            });
-          }
+          toast.success("Welcome to DRIPCYCLEX", {
+            description: `Account created for ${newUser.name}. You are signed in.`,
+          });
 
           broadcastSync("USER_REGISTERED", { user: newUser });
-          return true;
+          return { success: true, requiresEmailVerification: false };
         }
 
-        // Offline / LocalStorage Fallback (if Supabase not configured)
-        const passwords: StoredUserCredential[] = JSON.parse(
-          localStorage.getItem(PASSWORDS_KEY) || "[]",
-        );
-
-        const existing = users.find(
-          (u) => u.email.toLowerCase() === cleanEmail || u.phone.trim() === cleanPhone,
-        );
-
-        if (existing) {
-          toast.error("Account Exists", {
-            description: "A customer with this email or phone number is already registered.",
-          });
-          return false;
-        }
-
-        const newId = `usr-${Date.now().toString().slice(-6)}`;
-        const newUser: CustomerUser = {
-          ...userData,
-          id: newId,
-          registeredAt: new Date().toISOString().slice(0, 10),
-          status: "active",
-        };
-
-        const updatedUsers = [newUser, ...users];
-        setUsers(updatedUsers);
-        localStorage.setItem(USERS_KEY, JSON.stringify(updatedUsers));
-
-        passwords.push({
-          email: cleanEmail,
-          phone: cleanPhone,
-          password,
-          userId: newId,
+        toast.error("Registration Unavailable", {
+          description: "Database authentication service is not connected.",
         });
-        localStorage.setItem(PASSWORDS_KEY, JSON.stringify(passwords));
-
-        setCurrentUser(newUser);
-        broadcastSync("USER_REGISTERED", { user: newUser });
-        toast.success("Welcome to DRIPCYCLEX", {
-          description: `Account created for ${newUser.name}. You are signed in.`,
-        });
-        return true;
+        return { success: false, error: "Database not connected." };
       } catch (err: unknown) {
         console.error(err);
         const msg = err instanceof Error ? err.message : "Please check your details and try again.";
         toast.error("Registration Failed", {
           description: msg,
         });
-        return false;
+        return { success: false, error: msg };
       }
     },
-    [users],
+    [],
   );
 
-  // Login (supports Email + Password OR Mobile Number + Password)
+  // Verify Supabase Email OTP for signup confirmation (using Resend SMTP)
+  const verifyEmailOtp = useCallback(
+    async (
+      rawEmail: string,
+      token: string,
+    ): Promise<{ success: boolean; error?: string }> => {
+      const cleanEmail = rawEmail.toLowerCase().trim();
+      const cleanToken = token.trim();
+
+      if (!cleanToken) {
+        return { success: false, error: "Please enter the 6-digit confirmation code." };
+      }
+
+      if (!isSupabaseConfigured) {
+        return { success: true };
+      }
+
+      try {
+        // Try type 'signup' first
+        const { data, error } = await supabase.auth.verifyOtp({
+          email: cleanEmail,
+          token: cleanToken,
+          type: "signup",
+        });
+
+        if (error) {
+          // Fallback to type 'email' in case magic OTP was sent
+          const retry = await supabase.auth.verifyOtp({
+            email: cleanEmail,
+            token: cleanToken,
+            type: "email",
+          });
+
+          if (retry.error) {
+            return { success: false, error: retry.error.message || error.message };
+          }
+
+          if (retry.data.user) {
+            const customer = await fetchAndSyncProfile(retry.data.user);
+            setCurrentUser(customer);
+            setUsers((prev) => [customer, ...prev.filter((u) => u.id !== customer.id)]);
+            broadcastSync("USER_REGISTERED", { user: customer });
+            return { success: true };
+          }
+        }
+
+        if (data.user) {
+          const customer = await fetchAndSyncProfile(data.user);
+          setCurrentUser(customer);
+          setUsers((prev) => [customer, ...prev.filter((u) => u.id !== customer.id)]);
+          broadcastSync("USER_REGISTERED", { user: customer });
+          return { success: true };
+        }
+
+        return { success: true };
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : "Verification failed.";
+        return { success: false, error: msg };
+      }
+    },
+    [],
+  );
+
+  // Resend Supabase verification email via Resend SMTP
+  const resendEmailOtp = useCallback(
+    async (rawEmail: string): Promise<{ success: boolean; error?: string }> => {
+      const cleanEmail = rawEmail.toLowerCase().trim();
+      if (!isSupabaseConfigured) {
+        return { success: true };
+      }
+
+      try {
+        const { error } = await supabase.auth.resend({
+          type: "signup",
+          email: cleanEmail,
+        });
+
+        if (error) {
+          return { success: false, error: error.message };
+        }
+
+        toast.success("Verification Code Resent", {
+          description: `A new confirmation email has been dispatched to ${cleanEmail} via no-reply@dripcyclex.in.`,
+        });
+        return { success: true };
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : "Failed to resend confirmation email.";
+        return { success: false, error: msg };
+      }
+    },
+    [],
+  );
+
+  // Login (strictly authenticated via Supabase Auth — no localhost/localStorage bypass)
   const login = useCallback(
     async (emailOrPhone: string, password: string): Promise<boolean> => {
       try {
@@ -518,276 +596,104 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const isEmail = cleanInput.includes("@");
         let emailToAuth = cleanInput.toLowerCase();
 
-        // If user entered a mobile number, resolve it to the associated email
+        if (!isSupabaseConfigured) {
+          toast.error("Authentication Service Offline", {
+            description: "Supabase connection is not available.",
+          });
+          return false;
+        }
+
+        // If user entered a mobile number, resolve it to the associated email in Supabase
         if (!isEmail) {
-          const { national, e164, clean: digits } = normalizePhoneNumber(cleanInput);
+          const digits = cleanInput.replace(/\D/g, "");
+          const phone10 = digits.slice(-10);
+          const { national, e164 } = normalizePhoneNumber(cleanInput);
           let resolvedEmail: string | null = null;
 
-          if (isSupabaseConfigured) {
-            // 1. Try PostgreSQL RPC function (SECURITY DEFINER bypasses RLS safely)
-            try {
-              const { data: rpcEmail, error: rpcErr } = await supabase.rpc("get_email_by_phone", {
-                p_phone: cleanInput,
-              });
-              if (!rpcErr && rpcEmail && typeof rpcEmail === "string" && rpcEmail.includes("@")) {
-                resolvedEmail = rpcEmail.trim().toLowerCase();
-              }
-            } catch (e: unknown) {
-              console.warn("RPC phone lookup notice:", e);
-            }
-
-            // 2. Direct profiles table query with multiple phone variations
-            if (!resolvedEmail) {
-              try {
-                const orConditions = [
-                  `phone.eq.${cleanInput}`,
-                  `phone.eq.${national}`,
-                  `phone.eq.${e164}`,
-                  `phone.eq.+91 ${national}`,
-                  `phone.ilike.%${national}%`,
-                ].join(",");
-
-                const { data: foundProfiles } = await supabase
-                  .from("profiles")
-                  .select("email, phone")
-                  .or(orConditions)
-                  .limit(1);
-
-                if (foundProfiles && foundProfiles.length > 0 && foundProfiles[0]?.email) {
-                  resolvedEmail = (foundProfiles[0].email as string).trim().toLowerCase();
-                }
-              } catch (e: unknown) {
-                console.warn("Direct profiles phone lookup notice:", e);
-              }
-            }
-          }
-
-          // 3. Check in-memory state & localStorage users list
-          if (!resolvedEmail) {
-            const storedUsers: CustomerUser[] = (() => {
-              try {
-                const raw = localStorage.getItem(USERS_KEY);
-                return raw ? JSON.parse(raw) : [];
-              } catch {
-                return [];
-              }
-            })();
-            const combinedUsers = [...users, ...storedUsers];
-            const matchedUser = combinedUsers.find((u) => {
-              if (!u.phone) return false;
-              const uNorm = normalizePhoneNumber(u.phone);
-              return (
-                uNorm.national === national ||
-                uNorm.clean === digits ||
-                u.phone.replace(/\D/g, "").includes(national)
-              );
+          // 1. Try PostgreSQL RPC function (SECURITY DEFINER bypasses RLS safely)
+          try {
+            const { data: rpcEmail, error: rpcErr } = await supabase.rpc("get_email_by_phone", {
+              p_phone: phone10 || cleanInput,
             });
-            if (matchedUser?.email) {
-              resolvedEmail = matchedUser.email.trim().toLowerCase();
+            if (!rpcErr && rpcEmail && typeof rpcEmail === "string" && rpcEmail.includes("@")) {
+              resolvedEmail = rpcEmail.trim().toLowerCase();
             }
+          } catch (e: unknown) {
+            console.warn("RPC phone lookup notice:", e);
           }
 
-          // 4. Check cached credentials in localStorage
+          // 2. Direct profiles table query with multiple phone variations
           if (!resolvedEmail) {
             try {
-              const creds: StoredUserCredential[] = JSON.parse(
-                localStorage.getItem(PASSWORDS_KEY) || "[]",
-              );
-              const matchedCred = creds.find((c) => {
-                if (!c.phone) return false;
-                const cNorm = normalizePhoneNumber(c.phone);
-                return (
-                  cNorm.national === national ||
-                  cNorm.clean === digits ||
-                  c.phone.replace(/\D/g, "").includes(national)
-                );
-              });
-              if (matchedCred?.email) {
-                resolvedEmail = matchedCred.email.trim().toLowerCase();
+              const orConditions = [
+                `phone.eq.${phone10}`,
+                `phone.eq.${cleanInput}`,
+                `phone.eq.${national}`,
+                `phone.eq.${e164}`,
+                `phone.eq.+91 ${phone10}`,
+                `phone.eq.+91${phone10}`,
+                `phone.ilike.%${phone10}%`,
+              ].join(",");
+
+              const { data: foundProfiles } = await supabase
+                .from("profiles")
+                .select("email, phone")
+                .or(orConditions)
+                .limit(1);
+
+              if (foundProfiles && foundProfiles.length > 0 && foundProfiles[0]?.email) {
+                resolvedEmail = (foundProfiles[0].email as string).trim().toLowerCase();
               }
             } catch (e: unknown) {
-              console.warn("Cached credentials phone lookup notice:", e);
+              console.warn("Direct profiles phone lookup notice:", e);
             }
           }
 
           if (resolvedEmail) {
             emailToAuth = resolvedEmail;
           } else {
-            // If phone could not be resolved to an email:
-            // Attempt Supabase phone auth if configured, or check offline credentials
-            if (isSupabaseConfigured) {
-              try {
-                const { data: phoneAuthData, error: phoneAuthError } =
-                  await supabase.auth.signInWithPassword({
-                    phone: e164,
-                    password,
-                  });
-
-                if (!phoneAuthError && phoneAuthData.user) {
-                  const customerUser = await fetchAndSyncProfile(phoneAuthData.user);
-                  if (customerUser.status === "suspended") {
-                    await supabase.auth.signOut();
-                    toast.error("Account Suspended", {
-                      description: "Please contact Dripcyclex@gmail.com for assistance.",
-                    });
-                    return false;
-                  }
-                  setCurrentUser(customerUser);
-                  setUsers((prev) => [customerUser, ...prev.filter((u) => u.id !== customerUser.id)]);
-                  toast.success("Welcome Back", {
-                    description: `Signed in as ${customerUser.name}.`,
-                  });
-                  return true;
-                }
-              } catch {
-                // Ignore and proceed to fallback
-              }
-            }
-
-            // Offline credentials fallback check
-            const passwords: StoredUserCredential[] = JSON.parse(
-              localStorage.getItem(PASSWORDS_KEY) || "[]",
-            );
-            const matchedCred = passwords.find((c) => {
-              const cNorm = normalizePhoneNumber(c.phone || "");
-              return (
-                (cNorm.national === national || c.phone === cleanInput) &&
-                c.password === password
-              );
-            });
-
-            if (matchedCred) {
-              const foundUser = users.find((u) => u.id === matchedCred.userId);
-              if (foundUser?.status === "suspended") {
-                toast.error("Account Suspended", {
-                  description: "Your account has been suspended by administration. Access is blocked.",
-                  duration: 8000,
-                });
-                return false;
-              }
-              if (foundUser) {
-                setCurrentUser(foundUser);
-                toast.success("Welcome Back", {
-                  description: `Signed in as ${foundUser.name}.`,
-                });
-                return true;
-              }
-            }
-
             toast.error("Account Not Found", {
-              description: `No registered account found with mobile number ${cleanInput}. Please check your number or sign in with your email address.`,
+              description: `No registered account found with mobile number ${cleanInput}. Please sign in with your registered email address.`,
             });
             return false;
           }
         }
 
-        // Now authenticate with resolved email (or entered email)
-        if (isSupabaseConfigured) {
-          const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-            email: emailToAuth,
-            password,
-          });
-
-          if (authError) {
-            // Check offline/local credentials fallback
-            const passwords: StoredUserCredential[] = JSON.parse(
-              localStorage.getItem(PASSWORDS_KEY) || "[]",
-            );
-            const inputNorm = !isEmail ? normalizePhoneNumber(cleanInput).national : "";
-            const matchedCred = passwords.find((c) => {
-              const cNorm = normalizePhoneNumber(c.phone || "").national;
-              return (
-                (c.email === emailToAuth ||
-                  c.email === cleanInput.toLowerCase() ||
-                  (inputNorm && cNorm === inputNorm) ||
-                  c.phone === cleanInput) &&
-                c.password === password
-              );
-            });
-
-            if (matchedCred) {
-              const foundUser = users.find((u) => u.id === matchedCred.userId);
-              if (foundUser?.status === "suspended") {
-                toast.error("Account Suspended", {
-                  description: "Your account has been suspended by administration. Access is blocked.",
-                  duration: 8000,
-                });
-                return false;
-              }
-              if (foundUser) {
-                setCurrentUser(foundUser);
-                toast.success("Welcome Back", {
-                  description: `Signed in as ${foundUser.name}.`,
-                });
-                return true;
-              }
-            }
-
-            toast.error("Authentication Failed", {
-              description: authError.message || "Incorrect email, mobile number, or password.",
-            });
-            return false;
-          }
-
-          if (authData.user) {
-            const customerUser = await fetchAndSyncProfile(authData.user);
-            if (customerUser.status === "suspended") {
-              await supabase.auth.signOut();
-              toast.error("Account Suspended", {
-                description: "Please contact Dripcyclex@gmail.com for assistance.",
-              });
-              return false;
-            }
-
-            setCurrentUser(customerUser);
-            setUsers((prev) => [customerUser, ...prev.filter((u) => u.id !== customerUser.id)]);
-            toast.success("Welcome Back", {
-              description: `Signed in as ${customerUser.name}.`,
-            });
-            return true;
-          }
-        }
-
-        // Offline / LocalStorage Fallback (if Supabase not configured)
-        const passwords: StoredUserCredential[] = JSON.parse(
-          localStorage.getItem(PASSWORDS_KEY) || "[]",
-        );
-        const inputNorm = !isEmail ? normalizePhoneNumber(cleanInput).national : "";
-
-        const matchedCred = passwords.find((c) => {
-          const cNorm = normalizePhoneNumber(c.phone || "").national;
-          return (
-            (c.email === emailToAuth ||
-              c.email === cleanInput.toLowerCase() ||
-              (inputNorm && cNorm === inputNorm) ||
-              c.phone === cleanInput) &&
-            c.password === password
-          );
+        // Authenticate strictly with Supabase Auth
+        const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+          email: emailToAuth,
+          password,
         });
 
-        if (!matchedCred) {
+        if (authError) {
+          // Strictly fail: If user was deleted from Supabase or password is wrong, access is denied
           toast.error("Authentication Failed", {
-            description: "Incorrect email, mobile number, or password.",
+            description: authError.message || "Incorrect email, mobile number, or password.",
           });
           return false;
         }
 
-        const foundUser = users.find((u) => u.id === matchedCred.userId);
-        if (!foundUser) {
-          toast.error("User Record Not Found");
+        if (!authData.user) {
+          toast.error("Authentication Failed", {
+            description: "No user returned from authentication service.",
+          });
           return false;
         }
 
-        if (foundUser.status === "suspended") {
+        const customerUser = await fetchAndSyncProfile(authData.user);
+        if (customerUser.status === "suspended") {
+          await supabase.auth.signOut();
+          setCurrentUser(null);
           toast.error("Account Suspended", {
             description: "Please contact Dripcyclex@gmail.com for assistance.",
           });
           return false;
         }
 
-        setCurrentUser(foundUser);
+        setCurrentUser(customerUser);
+        setUsers((prev) => [customerUser, ...prev.filter((u) => u.id !== customerUser.id)]);
         toast.success("Welcome Back", {
-          description: `Signed in as ${foundUser.name}.`,
+          description: `Signed in as ${customerUser.name}.`,
         });
         return true;
       } catch (err: unknown) {
@@ -799,7 +705,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return false;
       }
     },
-    [users],
+    [],
   );
 
   // Login with Phone OTP
@@ -1059,20 +965,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         prev.map((u) => (u.id === userId ? { ...u, status: newStatus } : u)),
       );
 
-      // 2. Update local storage users cache
-      try {
-        const stored: CustomerUser[] = JSON.parse(
-          localStorage.getItem(USERS_KEY) || "[]",
-        );
-        const updated = stored.map((u) =>
-          u.id === userId ? { ...u, status: newStatus } : u,
-        );
-        localStorage.setItem(USERS_KEY, JSON.stringify(updated));
-      } catch {
-        /* ignore */
-      }
-
-      // 3. If currently logged-in user is being suspended, terminate session immediately
+      // 2. If currently logged-in user is being suspended, terminate session immediately
       if (currentUser?.id === userId && newStatus === "suspended") {
         await logout();
         toast.error("Account Suspended", {
@@ -1081,7 +974,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         });
       }
 
-      // 4. Update Supabase profiles table
+      // 3. Update Supabase profiles table
       if (isSupabaseConfigured) {
         try {
           const { error } = await supabase
@@ -1101,7 +994,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      // 5. Broadcast sync across all open browser tabs and windows
+      // 4. Broadcast sync across all open browser tabs and windows
       broadcastSync("USER_STATUS_CHANGED", { userId, status: newStatus });
       return true;
     },
@@ -1134,30 +1027,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     ),
   );
 
-  // Window Focus verification: Enforce suspension whenever user returns to tab
+  // Window Focus verification: Enforce session validity & suspension whenever user returns to tab
   useEffect(() => {
     if (!currentUser) return;
 
     const verifyActiveStatus = async () => {
-      // 1. Check local storage users cache
-      try {
-        const localUsers: CustomerUser[] = JSON.parse(
-          localStorage.getItem(USERS_KEY) || "[]",
-        );
-        const match = localUsers.find((u) => u.id === currentUser.id);
-        if (match && match.status === "suspended") {
-          await logout();
-          toast.error("Account Suspended", {
-            description: "Your account has been suspended by administration.",
-            duration: 9000,
-          });
-          return;
-        }
-      } catch {
-        /* ignore */
-      }
-
-      // 2. Check remote Supabase profiles table
       if (isSupabaseConfigured) {
         try {
           const { data: profile } = await supabase
@@ -1166,9 +1040,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             .eq("id", currentUser.id)
             .maybeSingle();
 
+          // If user was removed or deleted from Supabase, log out immediately
+          if (!profile) {
+            await logout();
+            return;
+          }
+
           if (
-            profile &&
-            ((profile as any).status === "suspended" || profile.role === "suspended")
+            (profile as any).status === "suspended" ||
+            profile.role === "suspended"
           ) {
             await logout();
             toast.error("Account Suspended", {
@@ -1194,6 +1074,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         currentUser,
         users,
         register,
+        verifyEmailOtp,
+        resendEmailOtp,
         login,
         loginWithPhoneOtp,
         logout,

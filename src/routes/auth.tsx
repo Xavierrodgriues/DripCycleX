@@ -17,6 +17,7 @@ import {
   LogOut,
   Smartphone,
   KeyRound,
+  RotateCcw,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -25,19 +26,21 @@ import { useAuth } from "@/lib/auth-store";
 import { useShop } from "@/lib/shop-store";
 import { cn } from "@/lib/utils";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
-import {
-  sendEmailOtp,
-  verifyEmailOtp,
-  isValidEmail,
-  OFFICIAL_CONTACT_EMAIL,
-} from "@/lib/email-otp-service";
 
 export const Route = createFileRoute("/auth")({
   component: AuthPage,
 });
 
 function AuthPage() {
-  const { currentUser, login, loginWithPhoneOtp, register, logout } = useAuth();
+  const {
+    currentUser,
+    login,
+    loginWithPhoneOtp,
+    register,
+    verifyEmailOtp,
+    resendEmailOtp,
+    logout,
+  } = useAuth();
   const { cartCount, wishlist } = useShop();
   const navigate = useNavigate();
 
@@ -61,75 +64,20 @@ function AuthPage() {
   const [regConfirmPassword, setRegConfirmPassword] = useState("");
   const [showRegPassword, setShowRegPassword] = useState(false);
 
-  // Register Email OTP confirmation state (custom in-code via FormSubmit & Dripcyclex@gmail.com)
-  const [emailOtp, setEmailOtp] = useState("");
-  const [isEmailOtpSent, setIsEmailOtpSent] = useState(false);
-  const [isEmailVerified, setIsEmailVerified] = useState(false);
-  const [emailOtpSending, setEmailOtpSending] = useState(false);
-  const [emailOtpVerifying, setEmailOtpVerifying] = useState(false);
-  const [emailCooldown, setEmailCooldown] = useState(0);
+  // Supabase + Resend verification state
+  const [isAwaitingVerification, setIsAwaitingVerification] = useState(false);
+  const [pendingVerifyEmail, setPendingVerifyEmail] = useState("");
+  const [verificationCode, setVerificationCode] = useState("");
+  const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
+  const [verifyCooldown, setVerifyCooldown] = useState(0);
+  const [isResending, setIsResending] = useState(false);
 
-  // Timer cooldown effect for email registration OTP
+  // Timer cooldown effect for email verification OTP
   useEffect(() => {
-    if (emailCooldown <= 0) return;
-    const timer = setInterval(() => setEmailCooldown((c) => c - 1), 1000);
+    if (verifyCooldown <= 0) return;
+    const timer = setInterval(() => setVerifyCooldown((c) => c - 1), 1000);
     return () => clearInterval(timer);
-  }, [emailCooldown]);
-
-  // Send Email OTP for Registration
-  const handleSendEmailOtp = async () => {
-    if (!regEmail.trim()) {
-      toast.error("Email Address Required", {
-        description: "Please enter your email address to receive the verification code.",
-      });
-      return;
-    }
-    if (!isValidEmail(regEmail)) {
-      toast.error("Invalid Email", {
-        description: "Please enter a valid email address.",
-      });
-      return;
-    }
-
-    setEmailOtpSending(true);
-    try {
-      const res = await sendEmailOtp(regEmail);
-      if (res.success) {
-        setIsEmailOtpSent(true);
-        setEmailCooldown(60);
-        setEmailOtp("");
-      }
-    } finally {
-      setEmailOtpSending(false);
-    }
-  };
-
-  // Verify Email OTP for Registration
-  const handleVerifyEmailOtp = async () => {
-    if (emailOtp.length < 6) {
-      toast.error("Complete Code Required", {
-        description: "Please enter the full 6-digit code sent to your email.",
-      });
-      return;
-    }
-    setEmailOtpVerifying(true);
-    try {
-      const res = await verifyEmailOtp(regEmail, emailOtp);
-      if (res.success) {
-        setIsEmailVerified(true);
-        setIsEmailOtpSent(false);
-        toast.success("Email Verified!", {
-          description: "Email verification successful. You can now complete registration.",
-        });
-      } else {
-        toast.error("Verification Failed", {
-          description: res.error || "Incorrect verification code. Please check your email and try again.",
-        });
-      }
-    } finally {
-      setEmailOtpVerifying(false);
-    }
-  };
+  }, [verifyCooldown]);
 
   // Submit Password Login
   const handleLoginSubmit = async (e: React.FormEvent) => {
@@ -149,25 +97,22 @@ function AuthPage() {
     }
   };
 
-  // Submit Registration
+  // Submit Registration via Supabase + Resend SMTP
   const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!regName.trim() || !regEmail.trim() || !regPhone.trim()) {
+    const cleanPhone = regPhone.replace(/\D/g, "");
+    if (!regName.trim() || !regEmail.trim() || !cleanPhone) {
       toast.error("Required Information Missing", {
-        description: "Please enter your full name, email, and contact phone number.",
+        description: "Please enter your full name, email, and 10-digit contact number.",
       });
       return;
     }
 
-    // Require Email OTP verification before registration
-    if (!isEmailVerified) {
-      toast.error("Email Verification Required", {
-        description: "Please verify your email address with the 6-digit code first.",
+    if (cleanPhone.length !== 10) {
+      toast.error("Invalid Contact Number", {
+        description: "Contact number must be exactly 10 digits without country code (+91) or special characters.",
       });
-      if (!isEmailOtpSent) {
-        void handleSendEmailOtp();
-      }
       return;
     }
 
@@ -178,9 +123,9 @@ function AuthPage() {
       return;
     }
 
-    if (regPassword.length < 4) {
+    if (regPassword.length < 6) {
       toast.error("Password Too Short", {
-        description: "Please create a password of at least 4 characters.",
+        description: "Please create a password of at least 6 characters.",
       });
       return;
     }
@@ -194,11 +139,11 @@ function AuthPage() {
 
     setIsSubmitting(true);
     try {
-      const success = await register(
+      const res = await register(
         {
           name: regName.trim(),
           email: regEmail.trim(),
-          phone: regPhone.trim(),
+          phone: cleanPhone,
           address: regAddress.trim(),
           city: regCity.trim(),
           state: regState.trim() || "State",
@@ -207,13 +152,156 @@ function AuthPage() {
         regPassword,
       );
 
-      if (success) {
-        navigate({ to: "/" });
+      if (res.success) {
+        if (res.requiresEmailVerification) {
+          setPendingVerifyEmail(regEmail.trim().toLowerCase());
+          setIsAwaitingVerification(true);
+          setVerifyCooldown(60);
+          setVerificationCode("");
+        } else {
+          navigate({ to: "/" });
+        }
       }
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  // Confirm Verification Code via Supabase verifyOtp
+  const handleConfirmVerificationCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (verificationCode.trim().length < 6) {
+      toast.error("Complete Code Required", {
+        description: "Please enter the full 6-digit confirmation code.",
+      });
+      return;
+    }
+
+    setIsVerifyingOtp(true);
+    try {
+      const res = await verifyEmailOtp(pendingVerifyEmail, verificationCode.trim());
+      if (res.success) {
+        toast.success("Account Activated!", {
+          description: "Your email has been verified. Welcome to DRIPCYCLEX.",
+        });
+        navigate({ to: "/" });
+      } else {
+        toast.error("Verification Failed", {
+          description:
+            res.error || "Invalid or expired code. Please check your email or request a new code.",
+        });
+      }
+    } finally {
+      setIsVerifyingOtp(false);
+    }
+  };
+
+  // Resend Supabase verification email via Resend SMTP
+  const handleResendVerificationCode = async () => {
+    if (verifyCooldown > 0 || isResending) return;
+    setIsResending(true);
+    try {
+      const res = await resendEmailOtp(pendingVerifyEmail);
+      if (res.success) {
+        setVerifyCooldown(60);
+        setVerificationCode("");
+      } else {
+        toast.error("Resend Failed", {
+          description: res.error || "Unable to resend confirmation email.",
+        });
+      }
+    } finally {
+      setIsResending(false);
+    }
+  };
+
+  // Dedicated Verification Screen when Supabase + Resend requires confirmation
+  if (isAwaitingVerification) {
+    return (
+      <div className="min-h-[85vh] bg-black text-white flex items-center justify-center px-4 py-16">
+        <div className="w-full max-w-md border border-white/15 bg-zinc-950 p-6 sm:p-8 rounded-2xl shadow-2xl">
+          <div className="text-center mb-6">
+            <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-white/10 border border-white/20">
+              <Mail className="h-6 w-6 text-white" />
+            </div>
+            <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-zinc-400">
+              DRIPCYCLEX AUTHENTICATION
+            </p>
+            <h2 className="mt-1 text-2xl font-black uppercase tracking-tight text-white">
+              Verify Your Email
+            </h2>
+            <p className="mt-2 text-xs text-zinc-400 leading-relaxed">
+              We have dispatched a 6-digit confirmation code to{" "}
+              <strong className="text-white font-mono">{pendingVerifyEmail}</strong> from{" "}
+              <span className="text-emerald-400 font-mono">no-reply@dripcyclex.in</span>.
+            </p>
+          </div>
+
+          <form onSubmit={handleConfirmVerificationCode} className="space-y-5">
+            <div>
+              <label className="block text-center text-zinc-400 uppercase font-bold tracking-wider text-[11px] mb-2">
+                Enter 6-Digit Code
+              </label>
+              <div className="flex justify-center py-1">
+                <InputOTP
+                  maxLength={6}
+                  value={verificationCode}
+                  onChange={(val) => setVerificationCode(val)}
+                  autoFocus
+                >
+                  <InputOTPGroup className="gap-1.5 sm:gap-2">
+                    <InputOTPSlot index={0} className="border-white/30 bg-black text-white h-11 w-11 text-base font-bold" />
+                    <InputOTPSlot index={1} className="border-white/30 bg-black text-white h-11 w-11 text-base font-bold" />
+                    <InputOTPSlot index={2} className="border-white/30 bg-black text-white h-11 w-11 text-base font-bold" />
+                    <InputOTPSlot index={3} className="border-white/30 bg-black text-white h-11 w-11 text-base font-bold" />
+                    <InputOTPSlot index={4} className="border-white/30 bg-black text-white h-11 w-11 text-base font-bold" />
+                    <InputOTPSlot index={5} className="border-white/30 bg-black text-white h-11 w-11 text-base font-bold" />
+                  </InputOTPGroup>
+                </InputOTP>
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={isVerifyingOtp || verificationCode.trim().length < 6}
+              className="w-full flex items-center justify-center gap-2 bg-white text-black py-3 px-4 rounded font-black uppercase tracking-[0.18em] text-xs transition-colors hover:bg-zinc-200 disabled:opacity-40"
+            >
+              {isVerifyingOtp ? "Activating..." : "Verify & Activate Account"}
+            </button>
+
+            <div className="flex items-center justify-between text-xs pt-3 border-t border-white/10">
+              <button
+                type="button"
+                disabled={isResending || verifyCooldown > 0}
+                onClick={handleResendVerificationCode}
+                className="text-zinc-400 hover:text-white transition-colors disabled:opacity-40 flex items-center gap-1.5"
+              >
+                <RotateCcw className="h-3 w-3" />
+                {verifyCooldown > 0 ? `Resend Code (${verifyCooldown}s)` : "Resend Code"}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setIsAwaitingVerification(false);
+                  setVerificationCode("");
+                }}
+                className="text-zinc-500 hover:text-zinc-300 transition-colors underline"
+              >
+                Change Email / Back
+              </button>
+            </div>
+
+            <div className="text-center pt-1">
+              <p className="text-[11px] text-zinc-500">
+                Tip: You can also click the activation link inside the email to verify instantly.
+              </p>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  }
 
   // If already logged in, show User Profile Overview
   if (currentUser) {
@@ -427,114 +515,48 @@ function AuthPage() {
               />
             </div>
 
-            {/* Email Address & Email OTP Verification */}
+            {/* Email Address */}
+            <div>
+              <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
+                Email Address *
+              </label>
+              <input
+                type="email"
+                required
+                value={regEmail}
+                onChange={(e) => setRegEmail(e.target.value)}
+                placeholder="rohan@gmail.com"
+                className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded focus:border-white focus:outline-none transition-colors"
+              />
+            </div>
+
+            {/* Contact Mobile Number - 10 Digits Only, No special chars or country code */}
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className="block text-zinc-400 uppercase font-bold tracking-wider">
-                  Email Address *
+                  Contact Mobile Number *
                 </label>
-                {isEmailVerified && (
-                  <span className="flex items-center gap-1 text-[11px] font-bold text-emerald-400 font-mono">
-                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
-                    EMAIL VERIFIED
-                  </span>
-                )}
+                <span className="text-[10px] text-zinc-500 font-mono">
+                  {regPhone.length}/10 digits
+                </span>
               </div>
-              <div className="flex gap-2">
-                <input
-                  type="email"
-                  required
-                  disabled={isEmailVerified}
-                  value={regEmail}
-                  onChange={(e) => {
-                    setRegEmail(e.target.value);
-                    setIsEmailVerified(false);
-                    setIsEmailOtpSent(false);
-                  }}
-                  placeholder="rohan@gmail.com"
-                  className={cn(
-                    "flex-1 border bg-black px-3 py-2 text-white rounded focus:border-white focus:outline-none transition-colors",
-                    isEmailVerified
-                      ? "border-emerald-500/50 text-emerald-300 bg-emerald-950/20"
-                      : "border-white/15",
-                  )}
-                />
-                {!isEmailVerified && (
-                  <button
-                    type="button"
-                    disabled={emailOtpSending || emailCooldown > 0}
-                    onClick={handleSendEmailOtp}
-                    className="shrink-0 border border-white/20 bg-white/10 px-3.5 py-2 text-[11px] font-bold uppercase tracking-wider text-white rounded hover:bg-white/20 transition-colors disabled:opacity-40"
-                  >
-                    {emailOtpSending
-                      ? "Sending..."
-                      : isEmailOtpSent
-                        ? emailCooldown > 0
-                          ? `Resend (${emailCooldown}s)`
-                          : "Resend"
-                        : "Send OTP"}
-                  </button>
-                )}
-              </div>
-
-              {/* In-place Email OTP Verification Box */}
-              {isEmailOtpSent && !isEmailVerified && (
-                <div className="mt-2.5 border border-white/20 bg-zinc-900/90 p-3.5 rounded-lg space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
-                  <div className="flex items-center justify-between text-[11px]">
-                    <span className="text-zinc-300 font-medium">
-                      Enter the 6-digit code sent to{" "}
-                      <strong className="text-white">{regEmail}</strong> from{" "}
-                      <span className="text-amber-400 font-mono">{OFFICIAL_CONTACT_EMAIL}</span>
-                    </span>
-                    {emailCooldown > 0 && (
-                      <span className="text-zinc-500 font-mono text-[10px]">
-                        Expires in {emailCooldown}s
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="flex justify-center py-1">
-                    <InputOTP
-                      maxLength={6}
-                      value={emailOtp}
-                      onChange={(val) => setEmailOtp(val)}
-                    >
-                      <InputOTPGroup className="gap-1.5 sm:gap-2">
-                        <InputOTPSlot index={0} className="border-white/30 bg-black text-white h-10 w-10 text-base font-bold" />
-                        <InputOTPSlot index={1} className="border-white/30 bg-black text-white h-10 w-10 text-base font-bold" />
-                        <InputOTPSlot index={2} className="border-white/30 bg-black text-white h-10 w-10 text-base font-bold" />
-                        <InputOTPSlot index={3} className="border-white/30 bg-black text-white h-10 w-10 text-base font-bold" />
-                        <InputOTPSlot index={4} className="border-white/30 bg-black text-white h-10 w-10 text-base font-bold" />
-                        <InputOTPSlot index={5} className="border-white/30 bg-black text-white h-10 w-10 text-base font-bold" />
-                      </InputOTPGroup>
-                    </InputOTP>
-                  </div>
-
-                  <button
-                    type="button"
-                    disabled={emailOtpVerifying || emailOtp.length < 6}
-                    onClick={handleVerifyEmailOtp}
-                    className="w-full flex items-center justify-center gap-2 bg-white text-black py-2.5 px-3 rounded font-black uppercase tracking-wider text-xs transition-colors hover:bg-zinc-200 disabled:opacity-40"
-                  >
-                    {emailOtpVerifying ? "Verifying Email Code..." : "Confirm & Verify Email"}
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Contact Mobile Number - Regular field without mobile OTP */}
-            <div>
-              <label className="block text-zinc-400 uppercase font-bold tracking-wider mb-1">
-                Contact Mobile Number *
-              </label>
               <input
                 type="tel"
                 required
+                maxLength={10}
+                inputMode="numeric"
+                pattern="[0-9]{10}"
                 value={regPhone}
-                onChange={(e) => setRegPhone(e.target.value)}
-                placeholder="+91 98765 43210"
-                className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded focus:border-white focus:outline-none"
+                onChange={(e) => {
+                  const digitsOnly = e.target.value.replace(/\D/g, "").slice(0, 10);
+                  setRegPhone(digitsOnly);
+                }}
+                placeholder="9876543210"
+                className="w-full border border-white/15 bg-black px-3 py-2 text-white rounded focus:border-white focus:outline-none font-mono tracking-wider transition-colors"
               />
+              <p className="text-[11px] text-zinc-500 mt-1">
+                Enter strictly 10 digits. Do not include +91, 0, spaces, or hyphens.
+              </p>
             </div>
 
             <div>
