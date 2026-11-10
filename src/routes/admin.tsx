@@ -357,9 +357,7 @@ function AdminDashboard({
   const [isAddSizeOpen, setIsAddSizeOpen] = useState(false);
 
   // Dynamic Product Sizes selection state for Add/Edit
-  const [selectedNewProductSizes, setSelectedNewProductSizes] = useState<string[]>(() =>
-    getCachedSizes().map((s) => s.code),
-  );
+  const [selectedNewProductSizes, setSelectedNewProductSizes] = useState<string[]>([]);
   const [selectedEditProductSizes, setSelectedEditProductSizes] = useState<string[]>([]);
 
   // Dynamic Product Carousel Images state for Add/Edit
@@ -373,17 +371,17 @@ function AdminDashboard({
     {
       name: "Pitch Black",
       hex: "#0a0a0a",
-      sizes: ["S", "M", "L", "XL", "XXL"],
+      sizes: [],
     },
     {
       name: "Shadow Charcoal",
       hex: "#27272a",
-      sizes: ["M", "L", "XL"],
+      sizes: [],
     },
     {
       name: "Ice White",
       hex: "#f5f5f5",
-      sizes: ["S", "M", "L"],
+      sizes: [],
     },
   ]);
   const [newColorInputName, setNewColorInputName] = useState("");
@@ -396,17 +394,18 @@ function AdminDashboard({
   useEffect(() => {
     if (editingProduct) {
       setEditProductIsActive(editingProduct.isActive !== false);
-      setSelectedEditProductSizes(editingProduct.sizes || []);
+      const prodSizes = Array.isArray(editingProduct.sizes) ? editingProduct.sizes : [];
+      setSelectedEditProductSizes(prodSizes);
       setEditProductImages(editingProduct.images || []);
       setEditProductColors(
         editingProduct.colors && editingProduct.colors.length > 0
           ? editingProduct.colors.map((c) => ({
               ...c,
-              sizes: c.sizes && c.sizes.length > 0 ? c.sizes : (editingProduct.sizes || []),
+              sizes: Array.isArray(c.sizes) ? c.sizes : prodSizes,
             }))
           : [
-              { name: "Pitch Black", hex: "#0a0a0a", sizes: editingProduct.sizes || [] },
-              { name: "Ice White", hex: "#f5f5f5", sizes: editingProduct.sizes || [] },
+              { name: "Pitch Black", hex: "#0a0a0a", sizes: prodSizes },
+              { name: "Ice White", hex: "#f5f5f5", sizes: prodSizes },
             ],
       );
     }
@@ -831,8 +830,8 @@ function AdminDashboard({
     sizeCode: string,
     isEdit: boolean,
   ) => {
-    const updateFn = (prev: ColorOption[]) =>
-      prev.map((c, idx) => {
+    const updateFn = (prev: ColorOption[]) => {
+      const nextColors = prev.map((c, idx) => {
         if (idx !== colorIndex) return c;
         const currentSizes = c.sizes || [];
         const nextSizes = currentSizes.includes(sizeCode)
@@ -840,6 +839,11 @@ function AdminDashboard({
           : [...currentSizes, sizeCode];
         return { ...c, sizes: nextSizes };
       });
+      const unionSizes = Array.from(new Set(nextColors.flatMap((c) => c.sizes || [])));
+      if (isEdit) setSelectedEditProductSizes(unionSizes);
+      else setSelectedNewProductSizes(unionSizes);
+      return nextColors;
+    };
 
     if (isEdit) {
       setEditProductColors(updateFn);
@@ -850,16 +854,26 @@ function AdminDashboard({
 
   const handleSelectAllColorSizes = (colorIndex: number, isEdit: boolean) => {
     const allCodes = sizesList.map((s) => s.code);
-    const updateFn = (prev: ColorOption[]) =>
-      prev.map((c, idx) => (idx === colorIndex ? { ...c, sizes: allCodes } : c));
+    const updateFn = (prev: ColorOption[]) => {
+      const nextColors = prev.map((c, idx) => (idx === colorIndex ? { ...c, sizes: allCodes } : c));
+      const unionSizes = Array.from(new Set(nextColors.flatMap((c) => c.sizes || [])));
+      if (isEdit) setSelectedEditProductSizes(unionSizes);
+      else setSelectedNewProductSizes(unionSizes);
+      return nextColors;
+    };
 
     if (isEdit) setEditProductColors(updateFn);
     else setNewProductColors(updateFn);
   };
 
   const handleClearAllColorSizes = (colorIndex: number, isEdit: boolean) => {
-    const updateFn = (prev: ColorOption[]) =>
-      prev.map((c, idx) => (idx === colorIndex ? { ...c, sizes: [] } : c));
+    const updateFn = (prev: ColorOption[]) => {
+      const nextColors = prev.map((c, idx) => (idx === colorIndex ? { ...c, sizes: [] } : c));
+      const unionSizes = Array.from(new Set(nextColors.flatMap((c) => c.sizes || [])));
+      if (isEdit) setSelectedEditProductSizes(unionSizes);
+      else setSelectedNewProductSizes(unionSizes);
+      return nextColors;
+    };
 
     if (isEdit) setEditProductColors(updateFn);
     else setNewProductColors(updateFn);
@@ -872,7 +886,7 @@ function AdminDashboard({
     }
 
     const defaultSizes =
-      (isEdit && editingProduct ? editingProduct.sizes : selectedNewProductSizes) || [];
+      (isEdit ? selectedEditProductSizes : selectedNewProductSizes) || [];
     const newColor: ColorOption = {
       name: newColorInputName.trim(),
       hex: newColorInputHex.trim() || "#0a0a0a",
@@ -927,15 +941,17 @@ function AdminDashboard({
     const allColorSizes = Array.from(
       new Set(editProductColors.flatMap((c) => c.sizes || [])),
     );
+    const resolvedSizes =
+      allColorSizes.length > 0
+        ? allColorSizes
+        : selectedEditProductSizes.length > 0
+          ? selectedEditProductSizes
+          : [];
+
     const finalProduct: Product = {
       ...updated,
       isActive: editProductIsActive,
-      sizes:
-        allColorSizes.length > 0
-          ? allColorSizes
-          : selectedEditProductSizes.length > 0
-            ? selectedEditProductSizes
-            : updated.sizes,
+      sizes: resolvedSizes,
       colors: editProductColors,
       images: Array.from(new Set(editProductImages)),
     };
@@ -1008,12 +1024,16 @@ function AdminDashboard({
     const formData = new FormData(e.currentTarget);
     const chosenCategory =
       (formData.get("category") as string) || (categoriesList[0]?.name ?? "T-Shirts");
-    const chosenSizes =
-      selectedNewProductSizes.length > 0 ? selectedNewProductSizes : ["S", "M", "L", "XL", "XXL"];
 
     const allColorSizes = Array.from(
       new Set(newProductColors.flatMap((c) => c.sizes || [])),
     );
+    const resolvedSizes =
+      allColorSizes.length > 0
+        ? allColorSizes
+        : selectedNewProductSizes.length > 0
+          ? selectedNewProductSizes
+          : [];
 
     const priceVal = Number(formData.get("price")) || 2499;
     const rawCompare = Number(formData.get("compareAtPrice"));
@@ -1030,7 +1050,7 @@ function AdminDashboard({
       reviews: 1,
       images: Array.from(new Set(newProductImages)),
       colors: newProductColors,
-      sizes: allColorSizes.length > 0 ? allColorSizes : chosenSizes,
+      sizes: resolvedSizes,
       description:
         (formData.get("description") as string) ||
         "Engineered heavyweight dark streetwear silhouette.",
@@ -1053,6 +1073,12 @@ function AdminDashboard({
     setProductsList(res.list);
     setIsAddProductOpen(false);
     setNewProductImages([]);
+    setSelectedNewProductSizes([]);
+    setNewProductColors([
+      { name: "Pitch Black", hex: "#0a0a0a", sizes: [] },
+      { name: "Shadow Charcoal", hex: "#27272a", sizes: [] },
+      { name: "Ice White", hex: "#f5f5f5", sizes: [] },
+    ]);
     setNewProductIsActive(true);
 
     if (res.success) {
@@ -2030,14 +2056,18 @@ function AdminDashboard({
                         </td>
                         <td className="py-4 px-4">
                           <div className="flex flex-wrap gap-1">
-                            {product.sizes.map((s) => (
-                              <span
-                                key={s}
-                                className="px-1.5 py-0.5 rounded bg-zinc-900 border border-white/10 text-[10px] font-mono text-zinc-300"
-                              >
-                                {s}
-                              </span>
-                            ))}
+                            {Array.isArray(product.sizes) && product.sizes.length > 0 ? (
+                              product.sizes.map((s) => (
+                                <span
+                                  key={s}
+                                  className="px-1.5 py-0.5 rounded bg-zinc-900 border border-white/10 text-[10px] font-mono text-zinc-300"
+                                >
+                                  {s}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-[10px] text-zinc-600 font-mono">None</span>
+                            )}
                           </div>
                         </td>
                         <td className="py-4 px-4">
@@ -2224,7 +2254,7 @@ function AdminDashboard({
                 <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
                   {sizesList.map((sz) => {
                     const productsWithSize = productsList.filter((p) =>
-                      p.sizes.includes(sz.code),
+                      Array.isArray(p.sizes) && p.sizes.includes(sz.code),
                     ).length;
 
                     return (
@@ -2907,12 +2937,17 @@ function AdminDashboard({
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="block text-zinc-400 uppercase font-bold tracking-wider">
-                    Available Sizes ({selectedEditProductSizes.length})
+                    Available Sizes ({selectedEditProductSizes.length}){" "}
+                    <span className="text-[10px] text-zinc-500 font-normal lowercase">(optional)</span>
                   </label>
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
-                      onClick={() => setSelectedEditProductSizes(sizesList.map((s) => s.code))}
+                      onClick={() => {
+                        const allCodes = sizesList.map((s) => s.code);
+                        setSelectedEditProductSizes(allCodes);
+                        setEditProductColors((prev) => prev.map((c) => ({ ...c, sizes: allCodes })));
+                      }}
                       className="text-[10px] text-zinc-400 hover:text-white underline cursor-pointer"
                     >
                       Select All
@@ -2920,8 +2955,11 @@ function AdminDashboard({
                     <span className="text-zinc-600">·</span>
                     <button
                       type="button"
-                      onClick={() => setSelectedEditProductSizes([])}
-                      className="text-[10px] text-zinc-400 hover:text-white underline cursor-pointer"
+                      onClick={() => {
+                        setSelectedEditProductSizes([]);
+                        setEditProductColors((prev) => prev.map((c) => ({ ...c, sizes: [] })));
+                      }}
+                      className="text-[10px] text-red-400 hover:text-red-300 underline cursor-pointer"
                     >
                       Clear
                     </button>
@@ -2935,10 +2973,23 @@ function AdminDashboard({
                         key={sz.code}
                         type="button"
                         onClick={() => {
-                          setSelectedEditProductSizes((prev) =>
-                            prev.includes(sz.code)
-                              ? prev.filter((s) => s !== sz.code)
-                              : [...prev, sz.code],
+                          const isCurrentlySelected = selectedEditProductSizes.includes(sz.code);
+                          const nextSizes = isCurrentlySelected
+                            ? selectedEditProductSizes.filter((s) => s !== sz.code)
+                            : [...selectedEditProductSizes, sz.code];
+                          setSelectedEditProductSizes(nextSizes);
+                          setEditProductColors((prev) =>
+                            prev.map((c) => {
+                              const curr = c.sizes || [];
+                              return {
+                                ...c,
+                                sizes: isCurrentlySelected
+                                  ? curr.filter((s) => s !== sz.code)
+                                  : curr.includes(sz.code)
+                                    ? curr
+                                    : [...curr, sz.code],
+                              };
+                            }),
                           );
                         }}
                         className={`px-3 py-1.5 rounded text-xs font-mono font-bold transition-all border ${
@@ -2951,6 +3002,11 @@ function AdminDashboard({
                       </button>
                     );
                   })}
+                  {selectedEditProductSizes.length === 0 && (
+                    <span className="text-xs text-zinc-500 italic py-1">
+                      No sizes selected (silhouette will have no size restrictions / One Size).
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -3183,7 +3239,7 @@ function AdminDashboard({
                       <div className="pt-1">
                         <div className="flex items-center justify-between mb-1.5">
                           <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">
-                            Available sizes for {color.name}:
+                            Available sizes for {color.name} ({(color.sizes || []).length}):
                           </span>
                           <div className="flex items-center gap-2 text-[10px]">
                             <button
@@ -3222,6 +3278,11 @@ function AdminDashboard({
                               </button>
                             );
                           })}
+                          {(!color.sizes || color.sizes.length === 0) && (
+                            <span className="text-[11px] text-zinc-500 italic py-0.5">
+                              No sizes selected (silhouette has no size limits for this colorway)
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -3414,12 +3475,17 @@ function AdminDashboard({
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="block text-zinc-400 uppercase font-bold tracking-wider">
-                    Available Sizes ({selectedNewProductSizes.length})
+                    Available Sizes ({selectedNewProductSizes.length}){" "}
+                    <span className="text-[10px] text-zinc-500 font-normal lowercase">(optional)</span>
                   </label>
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
-                      onClick={() => setSelectedNewProductSizes(sizesList.map((s) => s.code))}
+                      onClick={() => {
+                        const allCodes = sizesList.map((s) => s.code);
+                        setSelectedNewProductSizes(allCodes);
+                        setNewProductColors((prev) => prev.map((c) => ({ ...c, sizes: allCodes })));
+                      }}
                       className="text-[10px] text-zinc-400 hover:text-white underline cursor-pointer"
                     >
                       Select All
@@ -3427,8 +3493,11 @@ function AdminDashboard({
                     <span className="text-zinc-600">·</span>
                     <button
                       type="button"
-                      onClick={() => setSelectedNewProductSizes([])}
-                      className="text-[10px] text-zinc-400 hover:text-white underline cursor-pointer"
+                      onClick={() => {
+                        setSelectedNewProductSizes([]);
+                        setNewProductColors((prev) => prev.map((c) => ({ ...c, sizes: [] })));
+                      }}
+                      className="text-[10px] text-red-400 hover:text-red-300 underline cursor-pointer"
                     >
                       Clear
                     </button>
@@ -3442,10 +3511,23 @@ function AdminDashboard({
                         key={sz.code}
                         type="button"
                         onClick={() => {
-                          setSelectedNewProductSizes((prev) =>
-                            prev.includes(sz.code)
-                              ? prev.filter((s) => s !== sz.code)
-                              : [...prev, sz.code],
+                          const isCurrentlySelected = selectedNewProductSizes.includes(sz.code);
+                          const nextSizes = isCurrentlySelected
+                            ? selectedNewProductSizes.filter((s) => s !== sz.code)
+                            : [...selectedNewProductSizes, sz.code];
+                          setSelectedNewProductSizes(nextSizes);
+                          setNewProductColors((prev) =>
+                            prev.map((c) => {
+                              const curr = c.sizes || [];
+                              return {
+                                ...c,
+                                sizes: isCurrentlySelected
+                                  ? curr.filter((s) => s !== sz.code)
+                                  : curr.includes(sz.code)
+                                    ? curr
+                                    : [...curr, sz.code],
+                              };
+                            }),
                           );
                         }}
                         className={`px-3 py-1.5 rounded text-xs font-mono font-bold transition-all border ${
@@ -3458,6 +3540,11 @@ function AdminDashboard({
                       </button>
                     );
                   })}
+                  {selectedNewProductSizes.length === 0 && (
+                    <span className="text-xs text-zinc-500 italic py-1">
+                      No sizes selected (silhouette will have no size restrictions / One Size).
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -3690,7 +3777,7 @@ function AdminDashboard({
                       <div className="pt-1">
                         <div className="flex items-center justify-between mb-1.5">
                           <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">
-                            Available sizes for {color.name}:
+                            Available sizes for {color.name} ({(color.sizes || []).length}):
                           </span>
                           <div className="flex items-center gap-2 text-[10px]">
                             <button
@@ -3729,6 +3816,11 @@ function AdminDashboard({
                               </button>
                             );
                           })}
+                          {(!color.sizes || color.sizes.length === 0) && (
+                            <span className="text-[11px] text-zinc-500 italic py-0.5">
+                              No sizes selected (silhouette has no size limits for this colorway)
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>

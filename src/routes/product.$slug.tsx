@@ -93,19 +93,23 @@ function ProductDetailsPage() {
 
   // Sizes available specifically for this selected color (or fallback to product.sizes)
   const availableSizesForColor = useMemo(() => {
-    if (activeColorObj?.sizes && activeColorObj.sizes.length > 0) {
+    if (Array.isArray(activeColorObj?.sizes)) {
       return activeColorObj.sizes;
     }
-    return product?.sizes || [];
+    return Array.isArray(product?.sizes) ? product.sizes : [];
   }, [activeColorObj, product]);
 
   // Ensure selectedSize is valid for current colorway
   useEffect(() => {
-    if (availableSizesForColor.length > 0 && !availableSizesForColor.includes(selectedSize)) {
-      const firstValid = availableSizesForColor[0];
-      if (firstValid) {
-        setSelectedSize(firstValid);
+    if (availableSizesForColor.length > 0) {
+      if (!selectedSize || !availableSizesForColor.includes(selectedSize)) {
+        const firstValid = availableSizesForColor[0];
+        if (firstValid) {
+          setSelectedSize(firstValid);
+        }
       }
+    } else {
+      setSelectedSize("");
     }
   }, [availableSizesForColor, selectedSize]);
 
@@ -165,22 +169,20 @@ function ProductDetailsPage() {
     const colorObj = product?.colors.find((c) => c.name === colorName);
     if (colorObj) {
       // Adjust selected size if current size isn't available for this colorway
-      const validSizes =
-        colorObj.sizes && colorObj.sizes.length > 0 ? colorObj.sizes : product?.sizes || [];
-      if (!validSizes.includes(selectedSize) && validSizes.length > 0 && validSizes[0]) {
-        setSelectedSize(validSizes[0]);
+      const validSizes = Array.isArray(colorObj.sizes)
+        ? colorObj.sizes
+        : Array.isArray(product?.sizes)
+          ? product.sizes
+          : [];
+      if (validSizes.length > 0) {
+        if (!validSizes.includes(selectedSize) && validSizes[0]) {
+          setSelectedSize(validSizes[0]);
+        }
+      } else {
+        setSelectedSize("");
       }
     }
   };
-
-  // Keep selected size in sync if available sizes change
-  useEffect(() => {
-    if (availableSizesForColor.length > 0 && availableSizesForColor[0]) {
-      if (!selectedSize || !availableSizesForColor.includes(selectedSize)) {
-        setSelectedSize(availableSizesForColor[0]);
-      }
-    }
-  }, [availableSizesForColor, selectedSize]);
 
   useEffect(() => {
     if (product?.colors && product.colors.length > 0) {
@@ -224,18 +226,26 @@ function ProductDetailsPage() {
       carouselImages[0] ||
       FALLBACK_PRODUCT_IMAGE;
 
+    const chosenSize: string =
+      selectedSize ||
+      (availableSizesForColor.length > 0 && availableSizesForColor[0]
+        ? availableSizesForColor[0]
+        : "OS");
+
     const added = addToCart({
       slug: product.slug,
       name: product.name,
       price: product.price,
       image: definitiveImage,
-      size: selectedSize,
+      size: chosenSize,
       color: selectedColor,
       qty: quantity,
     });
     if (added) {
       toast.success("Added to Bag", {
-        description: `${product.name} (${selectedColor}, Size ${selectedSize})`,
+        description: selectedSize
+          ? `${product.name} (${selectedColor}, Size ${selectedSize})`
+          : `${product.name} (${selectedColor})`,
       });
     }
   };
@@ -460,124 +470,126 @@ function ProductDetailsPage() {
               </div>
             </div>
 
-            {/* Size Selector */}
-            <div>
-              <div className="flex justify-between items-center text-xs mb-3">
-                <span className="font-bold uppercase tracking-wider text-white">
-                  Select Size: <span className="text-zinc-400 font-normal">{selectedSize}</span>
-                  {availableSizesForColor.length > 0 && (
-                    <span className="ml-2 text-[10px] text-zinc-500 font-mono">
-                      ({availableSizesForColor.length} available for {selectedColor})
-                    </span>
-                  )}
-                </span>
-                {/* Size Guide Modal Trigger */}
-                <Dialog>
-                  <DialogTrigger asChild>
-                    <button className="flex items-center gap-1 text-xs text-zinc-300 hover:text-white font-bold uppercase tracking-wider">
-                      <Ruler className="h-3.5 w-3.5" /> Size Guide
-                    </button>
-                  </DialogTrigger>
-                  <DialogContent className="sm:max-w-lg bg-zinc-950 border border-white/15 text-white">
-                    <DialogHeader>
-                      <DialogTitle className="display-xl text-xl text-white">
-                        DRIPCYCLEX SIZE GUIDE
-                      </DialogTitle>
-                    </DialogHeader>
-                    <div className="py-4 space-y-4 text-xs">
-                      <p className="text-zinc-400">
-                        Cut for an architectural drop-shoulder streetwear drape. All measurements
-                        are in inches.
-                      </p>
-                      <div className="overflow-x-auto border border-white/10">
-                        <table className="w-full text-left">
-                          <thead className="bg-black border-b border-white/10 font-bold uppercase text-white">
-                            <tr>
-                              <th className="p-2.5 border-r border-white/10">Size</th>
-                              <th className="p-2.5 border-r border-white/10">Chest</th>
-                              <th className="p-2.5 border-r border-white/10">Shoulder</th>
-                              <th className="p-2.5">Length</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-white/10 text-zinc-300">
-                            <tr>
-                              <td className="p-2.5 font-bold border-r border-white/10 text-white">
-                                S
-                              </td>
-                              <td className="p-2.5 border-r border-white/10">40 - 42"</td>
-                              <td className="p-2.5 border-r border-white/10">20.0"</td>
-                              <td className="p-2.5">28.0"</td>
-                            </tr>
-                            <tr>
-                              <td className="p-2.5 font-bold border-r border-white/10 text-white">
-                                M
-                              </td>
-                              <td className="p-2.5 border-r border-white/10">42 - 44"</td>
-                              <td className="p-2.5 border-r border-white/10">21.0"</td>
-                              <td className="p-2.5">29.0"</td>
-                            </tr>
-                            <tr>
-                              <td className="p-2.5 font-bold border-r border-white/10 text-white">
-                                L
-                              </td>
-                              <td className="p-2.5 border-r border-white/10">44 - 46"</td>
-                              <td className="p-2.5 border-r border-white/10">22.0"</td>
-                              <td className="p-2.5">30.0"</td>
-                            </tr>
-                            <tr>
-                              <td className="p-2.5 font-bold border-r border-white/10 text-white">
-                                XL
-                              </td>
-                              <td className="p-2.5 border-r border-white/10">46 - 48"</td>
-                              <td className="p-2.5 border-r border-white/10">23.0"</td>
-                              <td className="p-2.5">31.0"</td>
-                            </tr>
-                            <tr>
-                              <td className="p-2.5 font-bold border-r border-white/10 text-white">
-                                XXL
-                              </td>
-                              <td className="p-2.5 border-r border-white/10">48 - 50"</td>
-                              <td className="p-2.5 border-r border-white/10">24.0"</td>
-                              <td className="p-2.5">32.0"</td>
-                            </tr>
-                          </tbody>
-                        </table>
+            {/* Size Selector - only displayed when product has available sizes configured */}
+            {Array.isArray(product.sizes) && product.sizes.length > 0 && (
+              <div>
+                <div className="flex justify-between items-center text-xs mb-3">
+                  <span className="font-bold uppercase tracking-wider text-white">
+                    Select Size: <span className="text-zinc-400 font-normal">{selectedSize || "None"}</span>
+                    {availableSizesForColor.length > 0 && (
+                      <span className="ml-2 text-[10px] text-zinc-500 font-mono">
+                        ({availableSizesForColor.length} available for {selectedColor})
+                      </span>
+                    )}
+                  </span>
+                  {/* Size Guide Modal Trigger */}
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <button className="flex items-center gap-1 text-xs text-zinc-300 hover:text-white font-bold uppercase tracking-wider">
+                        <Ruler className="h-3.5 w-3.5" /> Size Guide
+                      </button>
+                    </DialogTrigger>
+                    <DialogContent className="sm:max-w-lg bg-zinc-950 border border-white/15 text-white">
+                      <DialogHeader>
+                        <DialogTitle className="display-xl text-xl text-white">
+                          DRIPCYCLEX SIZE GUIDE
+                        </DialogTitle>
+                      </DialogHeader>
+                      <div className="py-4 space-y-4 text-xs">
+                        <p className="text-zinc-400">
+                          Cut for an architectural drop-shoulder streetwear drape. All measurements
+                          are in inches.
+                        </p>
+                        <div className="overflow-x-auto border border-white/10">
+                          <table className="w-full text-left">
+                            <thead className="bg-black border-b border-white/10 font-bold uppercase text-white">
+                              <tr>
+                                <th className="p-2.5 border-r border-white/10">Size</th>
+                                <th className="p-2.5 border-r border-white/10">Chest</th>
+                                <th className="p-2.5 border-r border-white/10">Shoulder</th>
+                                <th className="p-2.5">Length</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-white/10 text-zinc-300">
+                              <tr>
+                                <td className="p-2.5 font-bold border-r border-white/10 text-white">
+                                  S
+                                </td>
+                                <td className="p-2.5 border-r border-white/10">40 - 42"</td>
+                                <td className="p-2.5 border-r border-white/10">20.0"</td>
+                                <td className="p-2.5">28.0"</td>
+                              </tr>
+                              <tr>
+                                <td className="p-2.5 font-bold border-r border-white/10 text-white">
+                                  M
+                                </td>
+                                <td className="p-2.5 border-r border-white/10">42 - 44"</td>
+                                <td className="p-2.5 border-r border-white/10">21.0"</td>
+                                <td className="p-2.5">29.0"</td>
+                              </tr>
+                              <tr>
+                                <td className="p-2.5 font-bold border-r border-white/10 text-white">
+                                  L
+                                </td>
+                                <td className="p-2.5 border-r border-white/10">44 - 46"</td>
+                                <td className="p-2.5 border-r border-white/10">22.0"</td>
+                                <td className="p-2.5">30.0"</td>
+                              </tr>
+                              <tr>
+                                <td className="p-2.5 font-bold border-r border-white/10 text-white">
+                                  XL
+                                </td>
+                                <td className="p-2.5 border-r border-white/10">46 - 48"</td>
+                                <td className="p-2.5 border-r border-white/10">23.0"</td>
+                                <td className="p-2.5">31.0"</td>
+                              </tr>
+                              <tr>
+                                <td className="p-2.5 font-bold border-r border-white/10 text-white">
+                                  XXL
+                                </td>
+                                <td className="p-2.5 border-r border-white/10">48 - 50"</td>
+                                <td className="p-2.5 border-r border-white/10">24.0"</td>
+                                <td className="p-2.5">32.0"</td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
                       </div>
-                    </div>
-                  </DialogContent>
-                </Dialog>
-              </div>
+                    </DialogContent>
+                  </Dialog>
+                </div>
 
-              <div className="flex flex-wrap gap-2 max-w-full">
-                {product.sizes.map((sz) => {
-                  const isAvailable = availableSizesForColor.includes(sz);
-                  const isSelected = selectedSize === sz;
-                  return (
-                    <button
-                      key={sz}
-                      type="button"
-                      disabled={!isAvailable}
-                      onClick={() => setSelectedSize(sz)}
-                      title={
-                        isAvailable
-                          ? `Size ${sz} in stock for ${selectedColor}`
-                          : `Size ${sz} currently unavailable in ${selectedColor}`
-                      }
-                      className={cn(
-                        "relative min-w-[48px] sm:min-w-[54px] px-3 sm:px-4 py-2.5 sm:py-3 text-xs font-black uppercase tracking-wider border transition-all text-center shrink-0",
-                        isSelected && isAvailable
-                          ? "border-white bg-white text-black shadow-lg"
-                          : isAvailable
-                          ? "border-white/15 text-zinc-300 hover:border-white/40 hover:text-white"
-                          : "border-white/5 bg-zinc-950/40 text-zinc-600 line-through cursor-not-allowed opacity-30",
-                      )}
-                    >
-                      {sz}
-                    </button>
-                  );
-                })}
+                <div className="flex flex-wrap gap-2 max-w-full">
+                  {product.sizes.map((sz) => {
+                    const isAvailable = availableSizesForColor.includes(sz);
+                    const isSelected = selectedSize === sz;
+                    return (
+                      <button
+                        key={sz}
+                        type="button"
+                        disabled={!isAvailable}
+                        onClick={() => setSelectedSize(sz)}
+                        title={
+                          isAvailable
+                            ? `Size ${sz} in stock for ${selectedColor}`
+                            : `Size ${sz} currently unavailable in ${selectedColor}`
+                        }
+                        className={cn(
+                          "relative min-w-[48px] sm:min-w-[54px] px-3 sm:px-4 py-2.5 sm:py-3 text-xs font-black uppercase tracking-wider border transition-all text-center shrink-0",
+                          isSelected && isAvailable
+                            ? "border-white bg-white text-black shadow-lg"
+                            : isAvailable
+                            ? "border-white/15 text-zinc-300 hover:border-white/40 hover:text-white"
+                            : "border-white/5 bg-zinc-950/40 text-zinc-600 line-through cursor-not-allowed opacity-30",
+                        )}
+                      >
+                        {sz}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Quantity Selector */}
             <div>

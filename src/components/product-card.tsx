@@ -109,7 +109,10 @@ export function ProductCard({ product, badgeNumber }: { product: Product; badgeN
               name: product.name,
               price: product.price,
               image: firstColor?.image || product.images?.[0] || FALLBACK_PRODUCT_IMAGE,
-              size: product.sizes[Math.floor(product.sizes.length / 2)] ?? product.sizes[0] ?? "",
+              size:
+                Array.isArray(product.sizes) && product.sizes.length > 0
+                  ? product.sizes[Math.floor(product.sizes.length / 2)] ?? product.sizes[0] ?? ""
+                  : "",
               color: firstColor?.name ?? "",
               qty: 1,
             });

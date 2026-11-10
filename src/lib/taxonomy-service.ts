@@ -283,7 +283,7 @@ export async function syncProductToSupabase(product: Product): Promise<SupabaseS
       reviews_count: product.reviews ?? 1,
       images: Array.isArray(product.images) ? product.images : [],
       colors: Array.isArray(product.colors) ? product.colors : [],
-      sizes: Array.isArray(product.sizes) ? product.sizes : ["S", "M", "L", "XL", "XXL"],
+      sizes: Array.isArray(product.sizes) ? product.sizes : [],
       description: product.description || "",
       fabric: product.fabric || "",
       care: Array.isArray(product.care) ? product.care : [],
@@ -838,10 +838,7 @@ export async function fetchProducts(includeArchived: boolean = false): Promise<P
                   { name: "Shadow Charcoal", hex: "#27272a" },
                   { name: "Ice White", hex: "#f5f5f5" },
                 ],
-          sizes:
-            Array.isArray(row.sizes) && row.sizes.length > 0
-              ? row.sizes
-              : ["S", "M", "L", "XL", "XXL"],
+          sizes: Array.isArray(row.sizes) ? row.sizes : [],
           description: row.description || "",
           fabric: row.fabric || "",
           care: Array.isArray(row.care) ? row.care : [],

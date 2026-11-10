@@ -316,15 +316,17 @@ export function SiteHeader() {
                           const activeHex = activeColor?.hex || "#0a0a0a";
 
                           const colorSizes =
-                            activeColor?.sizes && activeColor.sizes.length > 0
+                            Array.isArray(activeColor?.sizes) && activeColor.sizes.length > 0
                               ? activeColor.sizes
-                              : prod?.sizes && prod.sizes.length > 0
+                              : Array.isArray(prod?.sizes) && prod.sizes.length > 0
                                 ? prod.sizes
-                                : ["XS", "S", "M", "L", "XL", "XXL"];
+                                : [];
 
                           const sizesList = colorSizes.includes(line.size)
                             ? colorSizes
-                            : [line.size, ...colorSizes];
+                            : line.size
+                              ? [line.size, ...colorSizes]
+                              : colorSizes;
 
                           return (
                             <li key={line.id} className="flex gap-3 py-4">
@@ -380,42 +382,48 @@ export function SiteHeader() {
                                       </select>
                                     </div>
 
-                                    {/* Themed Size Dropdown Button */}
-                                    <div className="group relative inline-flex items-center gap-2 rounded border border-white/20 bg-zinc-900/90 px-2.5 py-1.5 shadow-sm hover:border-white/60 hover:bg-zinc-850 active:scale-[0.98] transition-all cursor-pointer">
-                                      {/* Visible Themed UI (Pointer-events disabled so full button clicks select) */}
-                                      <div className="flex items-center gap-2 pointer-events-none">
-                                        <span className="text-[10px] uppercase font-mono tracking-wider text-zinc-400 font-bold">
-                                          SIZE
-                                        </span>
-                                        <span className="text-xs font-mono font-black text-white px-1.5 py-0.5 rounded bg-white/10 border border-white/20">
-                                          {line.size}
-                                        </span>
-                                        <ChevronDown className="h-3.5 w-3.5 text-zinc-400 group-hover:text-white transition-colors" />
-                                      </div>
+                                    {/* Themed Size Dropdown Button (only if product has sizes) */}
+                                    {sizesList.length > 0 && (
+                                      <div className={`group relative inline-flex items-center gap-2 rounded border border-white/20 bg-zinc-900/90 px-2.5 py-1.5 shadow-sm hover:border-white/60 hover:bg-zinc-850 active:scale-[0.98] transition-all ${sizesList.length > 1 ? "cursor-pointer" : ""}`}>
+                                        {/* Visible Themed UI (Pointer-events disabled so full button clicks select) */}
+                                        <div className="flex items-center gap-2 pointer-events-none">
+                                          <span className="text-[10px] uppercase font-mono tracking-wider text-zinc-400 font-bold">
+                                            SIZE
+                                          </span>
+                                          <span className="text-xs font-mono font-black text-white px-1.5 py-0.5 rounded bg-white/10 border border-white/20">
+                                            {line.size || sizesList[0]}
+                                          </span>
+                                          {sizesList.length > 1 && (
+                                            <ChevronDown className="h-3.5 w-3.5 text-zinc-400 group-hover:text-white transition-colors" />
+                                          )}
+                                        </div>
 
-                                      {/* Invisible full-coverage Select: triggers dropdown on click anywhere */}
-                                      <select
-                                        value={line.size}
-                                        onChange={(e) =>
-                                          updateLineVariant(line.id, {
-                                            size: e.target.value,
-                                          })
-                                        }
-                                        className="absolute inset-0 h-full w-full opacity-0 cursor-pointer z-10 appearance-none"
-                                        aria-label="Change product size"
-                                        title="Click anywhere to change size"
-                                      >
-                                        {sizesList.map((s) => (
-                                          <option
-                                            key={s}
-                                            value={s}
-                                            className="bg-zinc-950 text-white font-mono py-2"
+                                        {/* Invisible full-coverage Select: triggers dropdown on click anywhere */}
+                                        {sizesList.length > 1 && (
+                                          <select
+                                            value={line.size}
+                                            onChange={(e) =>
+                                              updateLineVariant(line.id, {
+                                                size: e.target.value,
+                                              })
+                                            }
+                                            className="absolute inset-0 h-full w-full opacity-0 cursor-pointer z-10 appearance-none"
+                                            aria-label="Change product size"
+                                            title="Click anywhere to change size"
                                           >
-                                            {s}
-                                          </option>
-                                        ))}
-                                      </select>
-                                    </div>
+                                            {sizesList.map((s) => (
+                                              <option
+                                                key={s}
+                                                value={s}
+                                                className="bg-zinc-950 text-white font-mono py-2"
+                                              >
+                                                {s}
+                                              </option>
+                                            ))}
+                                          </select>
+                                        )}
+                                      </div>
+                                    )}
                                   </div>
                                 </div>
 

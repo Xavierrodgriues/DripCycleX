@@ -421,11 +421,11 @@ export function ShopProvider({ children }: { children: ReactNode }) {
       );
 
       const availableSizes =
-        matchedColor?.sizes && matchedColor.sizes.length > 0
+        Array.isArray(matchedColor?.sizes) && matchedColor.sizes.length > 0
           ? matchedColor.sizes
-          : prod?.sizes && prod.sizes.length > 0
+          : Array.isArray(prod?.sizes) && prod.sizes.length > 0
             ? prod.sizes
-            : ["XS", "S", "M", "L", "XL", "XXL"];
+            : [];
 
       // If chosen or current size is not valid for the new colorway, default to first valid size
       if (!availableSizes.includes(newSize) && availableSizes.length > 0) {

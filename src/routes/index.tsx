@@ -301,7 +301,9 @@ export function Index() {
                     Available Sizes
                   </h5>
                   <p className="text-xs font-semibold text-white mt-1">
-                    {activeGarment.sizes.join(", ")}
+                    {Array.isArray(activeGarment.sizes) && activeGarment.sizes.length > 0
+                      ? activeGarment.sizes.join(", ")
+                      : "One Size (OS)"}
                   </p>
                 </div>
               </div>

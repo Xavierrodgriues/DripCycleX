@@ -95,7 +95,7 @@ function ShopPage() {
     }
 
     if (selectedSize) {
-      list = list.filter((p) => p.sizes.includes(selectedSize));
+      list = list.filter((p) => Array.isArray(p.sizes) && p.sizes.includes(selectedSize));
     }
 
     if (maxPrice) {
