@@ -27,8 +27,62 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { buildPageMeta, getBreadcrumbsJsonLd, getProductJsonLd } from "@/lib/seo";
 
 export const Route = createFileRoute("/product/$slug")({
+  head: ({ params }) => {
+    const prod = getProduct(params.slug);
+    const title = prod
+      ? `${prod.name} | DRIPCYCLEX Dark Streetwear`
+      : "Architectural Silhouette | DRIPCYCLEX";
+    const description = prod
+      ? `${prod.name} (₹${prod.price}): ${prod.description.slice(0, 140)}... Engineered luxury streetwear with 8 working days delivery across India.`
+      : "Explore architectural dark streetwear capsules from DRIPCYCLEX.";
+    const image =
+      prod?.images?.[0] ||
+      prod?.colors?.[0]?.image ||
+      `/products/${params.slug}.jpg`;
+
+    const pageMeta = buildPageMeta({
+      title,
+      description,
+      path: `/product/${params.slug}`,
+      image,
+      type: "product",
+      keywords: [
+        prod?.name || "DRIPCYCLEX piece",
+        prod?.category || "Streetwear",
+        "dark streetwear India",
+        "luxury heavyweight streetwear",
+        "architectural drop",
+        "DRIPCYCLEX",
+      ],
+    });
+
+    const scripts: Array<{ type: string; children: string }> = [];
+
+    if (prod) {
+      const breadcrumbs = getBreadcrumbsJsonLd([
+        { name: "Home", url: "/" },
+        { name: "Shop", url: "/shop" },
+        { name: prod.name, url: `/product/${prod.slug}` },
+      ]);
+      scripts.push({
+        type: "application/ld+json",
+        children: JSON.stringify(breadcrumbs),
+      });
+      scripts.push({
+        type: "application/ld+json",
+        children: JSON.stringify(getProductJsonLd(prod)),
+      });
+    }
+
+    return {
+      meta: pageMeta.meta,
+      links: pageMeta.links,
+      scripts,
+    };
+  },
   component: ProductDetailsPage,
 });
 
@@ -259,6 +313,16 @@ function ProductDetailsPage() {
 
   return (
     <div className="bg-black text-white pb-24 w-full min-w-0 max-w-full overflow-x-clip">
+      {/* Search Engine Structured Data JSON-LD (Hydration-safe) */}
+      {product && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify(getProductJsonLd(product)),
+          }}
+        />
+      )}
+
       {/* Breadcrumb Navigation */}
       <div className="border-b border-white/10 bg-zinc-950/60 py-3 sm:py-4 min-w-0 w-full">
         <div className="mx-auto flex max-w-[1400px] flex-wrap items-center gap-1.5 sm:gap-2 px-4 sm:px-8 lg:px-12 text-xs text-zinc-400 min-w-0">
@@ -368,7 +432,12 @@ function ProductDetailsPage() {
                           : "border-white/15 opacity-60 hover:opacity-100",
                       )}
                     >
-                      <img src={img} alt="" className="h-full w-full object-cover max-w-full" />
+                      <img
+                        src={img}
+                        alt={`${product.name} thumbnail ${idx + 1}`}
+                        loading="lazy"
+                        className="h-full w-full object-cover max-w-full"
+                      />
                       {isColorImage && (
                         <span className="absolute bottom-0 inset-x-0 bg-black/85 text-[8px] font-mono text-center text-white py-0.5 truncate px-0.5">
                           {activeColorObj?.name}

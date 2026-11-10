@@ -16,6 +16,7 @@ import {
 import { useRealtimeSync, type SyncPayload } from "@/lib/sync-channel";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
+import { buildPageMeta, getBreadcrumbsJsonLd } from "@/lib/seo";
 
 const shopSearchSchema = z.object({
   category: z.string().optional(),
@@ -28,6 +29,29 @@ const shopSearchSchema = z.object({
 
 export const Route = createFileRoute("/shop")({
   validateSearch: (search) => shopSearchSchema.parse(search),
+  head: () => {
+    const pageMeta = buildPageMeta({
+      title: "Shop All Silhouettes — Trinity Capsule Drop & Archive | DRIPCYCLEX",
+      description:
+        "Explore all DRIPCYCLEX drops: architectural oversized t-shirts, heavyweight brushed loopback hoodies, and tactical matte bombers. Filter by category, color, and fit standard.",
+      path: "/shop",
+      image: "/og-cover.jpg",
+    });
+    const breadcrumbsLd = getBreadcrumbsJsonLd([
+      { name: "Home", url: "/" },
+      { name: "Shop", url: "/shop" },
+    ]);
+    return {
+      meta: pageMeta.meta,
+      links: pageMeta.links,
+      scripts: [
+        {
+          type: "application/ld+json",
+          children: JSON.stringify(breadcrumbsLd),
+        },
+      ],
+    };
+  },
   component: ShopPage,
 });
 

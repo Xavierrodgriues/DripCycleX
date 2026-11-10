@@ -1,14 +1,47 @@
+# Robots.txt for DRIPCYCLEX
+# Website: https://dripcyclex.in
+
+User-agent: *
+Allow: /
+Allow: /shop
+Allow: /about
+Allow: /contact
+Allow: /product/
+Allow: /products/
+Allow: /assets/
+Allow: /dripcyclex-logo.jpg
+Allow: /og-cover.jpg
+
+# Private, administrative and authentication routes
+Disallow: /admin
+Disallow: /admin/
+Disallow: /auth
+Disallow: /auth/
+Disallow: /api/
+
+# Googlebot specific rules
 User-agent: Googlebot
 Allow: /
+Disallow: /admin
+Disallow: /admin/
+Disallow: /auth
+Disallow: /auth/
 
+# Bingbot specific rules
 User-agent: Bingbot
 Allow: /
+Disallow: /admin
+Disallow: /admin/
+Disallow: /auth
+Disallow: /auth/
 
+# Social media link preview crawlers
 User-agent: Twitterbot
 Allow: /
 
 User-agent: facebookexternalhit
 Allow: /
 
-User-agent: *
-Allow: /
+# Sitemap Index / Reference
+Sitemap: https://dripcyclex.in/sitemap.xml
+Host: https://dripcyclex.in

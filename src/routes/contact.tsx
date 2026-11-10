@@ -10,8 +10,66 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { buildPageMeta, getBreadcrumbsJsonLd, getFaqPageJsonLd } from "@/lib/seo";
 
 export const Route = createFileRoute("/contact")({
+  head: () => {
+    const pageMeta = buildPageMeta({
+      title: "Contact & Concierge — Direct Client Support | DRIPCYCLEX",
+      description:
+        "Get in touch with the DRIPCYCLEX client concierge. Inquiries regarding trinity capsule drops, sizing consultations, order tracking, and 7-day exchanges.",
+      path: "/contact",
+      image: "/og-cover.jpg",
+    });
+
+    const breadcrumbsLd = getBreadcrumbsJsonLd([
+      { name: "Home", url: "/" },
+      { name: "Contact & Support", url: "/contact" },
+    ]);
+
+    const faqLd = getFaqPageJsonLd([
+      {
+        question: "Are there physical offline retail stores?",
+        answer:
+          "No, DRIPCYCLEX operates strictly as a 100% online direct-to-consumer brand. By eliminating brick-and-mortar overhead and distributor markups, we invest exclusively into premium 240–480 GSM milled fabrics, custom hardware, and reliable 8 working days delivery with a low delivery fee across India.",
+      },
+      {
+        question: "How do DRIPCYCLEX fits compare to standard sizing?",
+        answer:
+          "All DRIPCYCLEX garments are cut with intentional architectural volume and drop shoulders. If you prefer a bold modern streetwear silhouette, choose your regular size. If you desire a standard fitted profile, choose one size down.",
+      },
+      {
+        question: "Why does DRIPCYCLEX showcase only 3 products?",
+        answer:
+          "We reject fast-fashion dilution. We focus all our pattern design, custom milling, and quality control on a 3-piece Trinity Drop. Each piece is built to be an enduring grail.",
+      },
+      {
+        question: "What is your return and exchange policy?",
+        answer:
+          "We offer a 7-day exchange policy if there is a mistake from our side—such as an incorrect size dispatched or a defective/damaged product. Reach out via email (Dripcyclex@gmail.com) or WhatsApp within 7 days with photos or unboxing video.",
+      },
+      {
+        question: "How long does shipping take across India?",
+        answer:
+          "Orders are dispatched through trusted logistics partners with a low delivery fee across India. Deliveries typically arrive within 8 working days from the date of confirmation.",
+      },
+    ]);
+
+    return {
+      meta: pageMeta.meta,
+      links: pageMeta.links,
+      scripts: [
+        {
+          type: "application/ld+json",
+          children: JSON.stringify(breadcrumbsLd),
+        },
+        {
+          type: "application/ld+json",
+          children: JSON.stringify(faqLd),
+        },
+      ],
+    };
+  },
   component: ContactPage,
 });
 

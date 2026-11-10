@@ -26,8 +26,21 @@ import { useAuth } from "@/lib/auth-store";
 import { useShop } from "@/lib/shop-store";
 import { cn } from "@/lib/utils";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
+import { buildPageMeta } from "@/lib/seo";
 
 export const Route = createFileRoute("/auth")({
+  head: () => {
+    const pageMeta = buildPageMeta({
+      title: "Account Access & Authentication | DRIPCYCLEX",
+      description: "Sign in or register for DRIPCYCLEX Trinity Capsule drops.",
+      path: "/auth",
+      noIndex: true,
+    });
+    return {
+      meta: pageMeta.meta,
+      links: pageMeta.links,
+    };
+  },
   component: AuthPage,
 });
 

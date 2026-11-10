@@ -5,8 +5,32 @@ import aboutCraft from "@/assets/about-craft.jpg";
 import editorial1 from "@/assets/editorial-1.jpg";
 import { Reveal } from "@/components/reveal";
 import { DripcycleXLogo } from "@/components/logo";
+import { buildPageMeta, getBreadcrumbsJsonLd } from "@/lib/seo";
 
 export const Route = createFileRoute("/about")({
+  head: () => {
+    const pageMeta = buildPageMeta({
+      title: "Manifesto & Craft — The DRIPCYCLEX Philosophy",
+      description:
+        "Read the DRIPCYCLEX 2026 Manifesto: engineered volume, draconic minimalism, heavyweight combed cotton, and luxury architectural streetwear built in India.",
+      path: "/about",
+      image: "/og-cover.jpg",
+    });
+    const breadcrumbsLd = getBreadcrumbsJsonLd([
+      { name: "Home", url: "/" },
+      { name: "Manifesto", url: "/about" },
+    ]);
+    return {
+      meta: pageMeta.meta,
+      links: pageMeta.links,
+      scripts: [
+        {
+          type: "application/ld+json",
+          children: JSON.stringify(breadcrumbsLd),
+        },
+      ],
+    };
+  },
   component: AboutPage,
 });
 

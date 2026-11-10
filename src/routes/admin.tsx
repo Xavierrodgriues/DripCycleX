@@ -82,8 +82,21 @@ import {
   updateAdminCredentialsInSupabase,
   resetAdminCredentialsToDefault,
 } from "@/lib/admin-auth-service";
+import { buildPageMeta } from "@/lib/seo";
 
 export const Route = createFileRoute("/admin")({
+  head: () => {
+    const pageMeta = buildPageMeta({
+      title: "Control Center | DRIPCYCLEX Admin",
+      description: "Administrative console for DRIPCYCLEX inventory, orders, and system status.",
+      path: "/admin",
+      noIndex: true,
+    });
+    return {
+      meta: pageMeta.meta,
+      links: pageMeta.links,
+    };
+  },
   component: AdminRouteComponent,
 });
 

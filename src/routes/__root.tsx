@@ -82,20 +82,28 @@ function ErrorComponent({ error, reset }: ErrorComponentProps) {
   );
 }
 
+import { getOrganizationJsonLd, SITE_CONFIG } from "@/lib/seo";
+
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   head: () => ({
     meta: [
       { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "DRIPCYCLEX — Redefined Dark Streetwear" },
+      { name: "viewport", content: "width=device-width, initial-scale=1, maximum-scale=5" },
+      { name: "theme-color", content: "#0a0a0a" },
+      { title: SITE_CONFIG.defaultTitle },
       {
         name: "description",
-        content:
-          "DRIPCYCLEX is a dark luxury streetwear brand: heavyweight fabrics, considered architectural drops, distressed chrome aesthetics, and draconic identity.",
+        content: SITE_CONFIG.defaultDescription,
       },
-      { name: "author", content: "DRIPCYCLEX" },
+      { name: "author", content: SITE_CONFIG.name },
+      { property: "og:site_name", content: SITE_CONFIG.name },
       { property: "og:type", content: "website" },
+      { property: "og:image", content: SITE_CONFIG.defaultImage },
+      { property: "og:image:alt", content: `${SITE_CONFIG.name} — ${SITE_CONFIG.tagline}` },
+      { property: "og:locale", content: "en_IN" },
       { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:image", content: SITE_CONFIG.defaultImage },
+      { name: "twitter:image:alt", content: `${SITE_CONFIG.name} — ${SITE_CONFIG.tagline}` },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
@@ -107,6 +115,12 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       },
       { rel: "icon", type: "image/jpeg", href: "/dripcyclex-logo.jpg" },
       { rel: "apple-touch-icon", href: "/dripcyclex-logo.jpg" },
+    ],
+    scripts: [
+      {
+        type: "application/ld+json",
+        children: JSON.stringify(getOrganizationJsonLd()),
+      },
     ],
   }),
   shellComponent: RootShell,

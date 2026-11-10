@@ -22,8 +22,22 @@ import { DripcycleXLogo } from "@/components/logo";
 import { formatPrice, FALLBACK_PRODUCT_IMAGE, type Product } from "@/data/products";
 import { getCachedProducts, fetchProducts } from "@/lib/taxonomy-service";
 import { useRealtimeSync, type SyncPayload } from "@/lib/sync-channel";
+import { buildPageMeta } from "@/lib/seo";
 
 export const Route = createFileRoute("/")({
+  head: () => {
+    const pageMeta = buildPageMeta({
+      title: "DRIPCYCLEX — Luxury Dark Streetwear & Architectural Drops",
+      description:
+        "Shop the official DRIPCYCLEX Trinity Capsule Drop. Discover architectural oversized cyber tees, signature stealth hoodies, and tactical bombers in 240–480 GSM luxury fabrics.",
+      path: "/",
+      image: "/og-cover.jpg",
+    });
+    return {
+      meta: pageMeta.meta,
+      links: pageMeta.links,
+    };
+  },
   component: Index,
 });
 

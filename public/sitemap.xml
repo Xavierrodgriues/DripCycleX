@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+  <!-- Homepage -->
+  <url>
+    <loc>https://dripcyclex.in/</loc>
+    <lastmod>2026-11-10</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+    <image:image>
+      <image:loc>https://dripcyclex.in/og-cover.jpg</image:loc>
+      <image:title>DRIPCYCLEX Architectural Dark Streetwear Capsule</image:title>
+      <image:caption>Heavyweight dark luxury streetwear engineered with architectural intent.</image:caption>
+    </image:image>
+  </url>
+
+  <!-- Catalog / Trinity Drop -->
+  <url>
+    <loc>https://dripcyclex.in/shop</loc>
+    <lastmod>2026-11-10</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+    <image:image>
+      <image:loc>https://dripcyclex.in/og-cover.jpg</image:loc>
+      <image:title>DRIPCYCLEX Catalog and Trinity Drop Showcase</image:title>
+      <image:caption>Explore all DRIPCYCLEX drops: cyber tees, loopback fleece hoodies, and tactical bombers.</image:caption>
+    </image:image>
+  </url>
+
+  <!-- Product: Heavyweight Cyber Tee -->
+  <url>
+    <loc>https://dripcyclex.in/product/oversized-cyber-tee</loc>
+    <lastmod>2026-11-10</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://dripcyclex.in/products/oversized-cyber-tee.jpg</image:loc>
+      <image:title>DRIPCYCLEX Heavyweight Cyber Tee</image:title>
+      <image:caption>240 GSM combed cotton drop-shoulder oversized tee with distressed chrome typography.</image:caption>
+    </image:image>
+  </url>
+
+  <!-- Product: Signature Stealth Hoodie -->
+  <url>
+    <loc>https://dripcyclex.in/product/signature-stealth-hoodie</loc>
+    <lastmod>2026-11-10</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://dripcyclex.in/products/signature-stealth-hoodie.jpg</image:loc>
+      <image:title>DRIPCYCLEX Signature Stealth Hoodie</image:title>
+      <image:caption>480 GSM luxury loopback brushed fleece architectural oversized silhouette hoodie.</image:caption>
+    </image:image>
+  </url>
+
+  <!-- Product: Tactical Matte Bomber -->
+  <url>
+    <loc>https://dripcyclex.in/product/tactical-matte-bomber</loc>
+    <lastmod>2026-11-10</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://dripcyclex.in/products/tactical-matte-bomber.jpg</image:loc>
+      <image:title>DRIPCYCLEX Tactical Matte Bomber</image:title>
+      <image:caption>Engineered flight bomber with water-repellent shell and custom industrial hardware.</image:caption>
+    </image:image>
+  </url>
+
+  <!-- Brand Manifesto & Philosophy -->
+  <url>
+    <loc>https://dripcyclex.in/about</loc>
+    <lastmod>2026-11-10</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+
+  <!-- Client Concierge & Support -->
+  <url>
+    <loc>https://dripcyclex.in/contact</loc>
+    <lastmod>2026-11-10</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+</urlset>
+
