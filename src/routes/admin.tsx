@@ -1251,6 +1251,7 @@ function AdminDashboard({
     if (confirm(`Remove user ${name}?`)) {
       setUsersList((prev) => prev.filter((u) => u.id !== id));
       try {
+        await supabase.rpc("delete_user_profile", { p_user_id: id });
         await supabase.from("profiles").delete().eq("id", id);
       } catch (err) {
         console.warn("Delete profile notice:", err);

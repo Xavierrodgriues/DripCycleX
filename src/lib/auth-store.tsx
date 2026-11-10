@@ -136,16 +136,68 @@ interface ProfileRow {
   updated_at: string;
 }
 
+const SUSPENDED_REGISTRY_KEY = "dripcyclex.suspended_registry";
+
+function getSuspendedRegistry(): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(SUSPENDED_REGISTRY_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function updateSuspendedRegistry(userIdOrEmail: string, isSuspended: boolean) {
+  if (typeof window === "undefined" || !userIdOrEmail) return;
+  try {
+    const current = getSuspendedRegistry();
+    const clean = userIdOrEmail.toLowerCase().trim();
+    let next: string[];
+    if (isSuspended) {
+      next = Array.from(new Set([...current, clean]));
+    } else {
+      next = current.filter((id) => id.toLowerCase() !== clean);
+    }
+    localStorage.setItem(SUSPENDED_REGISTRY_KEY, JSON.stringify(next));
+  } catch {
+    /* ignore */
+  }
+}
+
+export function isUserSuspended(id?: string, email?: string, phone?: string): boolean {
+  const reg = getSuspendedRegistry();
+  if (reg.length === 0) return false;
+  const set = new Set(reg.map((s) => s.toLowerCase().trim()));
+  if (id && set.has(id.toLowerCase().trim())) return true;
+  if (email && set.has(email.toLowerCase().trim())) return true;
+  if (phone) {
+    const pDigits = phone.replace(/\D/g, "");
+    if (pDigits && (set.has(pDigits) || set.has(pDigits.slice(-10)))) return true;
+  }
+  return false;
+}
+
 function mapProfileToCustomer(
   profile: Partial<ProfileRow>,
   fallbackMeta?: UserMetadataShape,
 ): CustomerUser {
   const shipping = profile.shipping_address ?? fallbackMeta?.shipping_address;
+  const rawId = profile.id ?? fallbackMeta?.id ?? `usr-${Date.now()}`;
+  const rawEmail = profile.email ?? fallbackMeta?.email ?? "";
+  const rawPhone = profile.phone ?? fallbackMeta?.phone ?? "";
+
+  const isSuspended =
+    (profile as any)?.status === "suspended" ||
+    profile.role === "suspended" ||
+    fallbackMeta?.role === "suspended" ||
+    isUserSuspended(rawId, rawEmail, rawPhone);
+
   return {
-    id: profile.id ?? fallbackMeta?.id ?? `usr-${Date.now()}`,
+    id: rawId,
     name: profile.full_name ?? fallbackMeta?.full_name ?? fallbackMeta?.name ?? "Customer",
-    email: profile.email ?? fallbackMeta?.email ?? "",
-    phone: profile.phone ?? fallbackMeta?.phone ?? "",
+    email: rawEmail,
+    phone: rawPhone,
     address: shipping?.address_line1 ?? fallbackMeta?.address ?? "",
     city: shipping?.city ?? fallbackMeta?.city ?? "",
     state: shipping?.state ?? fallbackMeta?.state ?? "State",
@@ -153,12 +205,7 @@ function mapProfileToCustomer(
     registeredAt: profile.created_at
       ? profile.created_at.slice(0, 10)
       : new Date().toISOString().slice(0, 10),
-    status:
-      (profile as any)?.status === "suspended" ||
-      profile.role === "suspended" ||
-      fallbackMeta?.role === "suspended"
-        ? "suspended"
-        : "active",
+    status: isSuspended ? "suspended" : "active",
   };
 }
 
@@ -960,13 +1007,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // User status toggler (Suspend / Activate) with live database persistence & immediate logout
   const setUserStatus = useCallback(
     async (userId: string, newStatus: "active" | "suspended"): Promise<boolean> => {
-      // 1. Update in local users state
+      const isSuspending = newStatus === "suspended";
+      const targetUser = users.find((u) => u.id === userId);
+
+      // 1. Update persistent local & cross-tab suspension registry
+      updateSuspendedRegistry(userId, isSuspending);
+      if (targetUser?.email) {
+        updateSuspendedRegistry(targetUser.email, isSuspending);
+      }
+      if (targetUser?.phone) {
+        updateSuspendedRegistry(targetUser.phone.replace(/\D/g, ""), isSuspending);
+      }
+
+      // 2. Update in local users state
       setUsers((prev) =>
         prev.map((u) => (u.id === userId ? { ...u, status: newStatus } : u)),
       );
 
-      // 2. If currently logged-in user is being suspended, terminate session immediately
-      if (currentUser?.id === userId && newStatus === "suspended") {
+      // 3. If currently logged-in user is being suspended, terminate session immediately
+      if (currentUser?.id === userId && isSuspending) {
         await logout();
         toast.error("Account Suspended", {
           description: "Your session has ended because your account was suspended by administration.",
@@ -974,14 +1033,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         });
       }
 
-      // 3. Update Supabase profiles table
+      // 4. Update Supabase database
       if (isSupabaseConfigured) {
+        // Try RPC first (SECURITY DEFINER bypasses RLS safely)
+        try {
+          const { error: rpcErr } = await supabase.rpc("set_user_status", {
+            p_user_id: userId,
+            p_status: newStatus,
+          });
+          if (rpcErr) {
+            console.warn("RPC set_user_status notice:", rpcErr.message);
+          }
+        } catch (e) {
+          console.warn("RPC status toggle exception:", e);
+        }
+
+        // Direct table update
         try {
           const { error } = await supabase
             .from("profiles")
             .update({
               status: newStatus,
-              role: newStatus === "suspended" ? "suspended" : "customer",
+              role: isSuspending ? "suspended" : "customer",
               updated_at: new Date().toISOString(),
             })
             .eq("id", userId);
@@ -994,11 +1067,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      // 4. Broadcast sync across all open browser tabs and windows
+      // 5. Broadcast sync across all open browser tabs and windows
       broadcastSync("USER_STATUS_CHANGED", { userId, status: newStatus });
       return true;
     },
-    [currentUser, logout],
+    [currentUser, users, logout],
   );
 
   // Cross-tab Realtime Sync: Automatically log out suspended users instantly
