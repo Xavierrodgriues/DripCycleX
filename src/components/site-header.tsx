@@ -11,6 +11,7 @@ import {
   Grid3x3,
   Trash2,
   User,
+  ChevronDown,
 } from "lucide-react";
 import { DripcycleXLogo } from "@/components/logo";
 import {
@@ -46,7 +47,16 @@ export function SiteHeader() {
   const [query, setQuery] = useState("");
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const { cart, cartCount, cartTotal, wishlist, removeLine, setQty, toggleWishlist } = useShop();
+  const {
+    cart,
+    cartCount,
+    cartTotal,
+    wishlist,
+    removeLine,
+    setQty,
+    updateLineVariant,
+    toggleWishlist,
+  } = useShop();
   const { currentUser } = useAuth();
 
   useEffect(() => {
@@ -280,52 +290,170 @@ export function SiteHeader() {
                       </div>
                     ) : (
                       <ul className="divide-y divide-white/10">
-                        {cart.map((line) => (
-                          <li key={line.id} className="flex gap-3 py-4">
-                            <img
-                              src={line.image}
-                              alt=""
-                              className="h-24 w-20 object-cover border border-white/10"
-                            />
-                            <div className="min-w-0 flex-1">
-                              <p className="truncate text-sm font-bold text-white">{line.name}</p>
-                              <p className="mt-1 text-xs text-zinc-400">
-                                {line.color} · Size {line.size}
-                              </p>
-                              <div className="mt-3 flex items-center gap-3">
-                                <div className="flex items-center border border-white/20 bg-black">
-                                  <button
-                                    className="px-2.5 py-1 text-sm text-zinc-300 hover:text-white"
-                                    onClick={() => setQty(line.id, line.qty - 1)}
-                                    aria-label="Decrease quantity"
-                                  >
-                                    −
-                                  </button>
-                                  <span className="w-8 text-center text-sm font-bold text-white">
-                                    {line.qty}
+                        {cart.map((line) => {
+                          const prod = liveProducts.find(
+                            (p) => p.slug === line.slug || p.id === line.slug,
+                          );
+
+                          const availableColors =
+                            prod?.colors && prod.colors.length > 0
+                              ? prod.colors
+                              : [{ name: line.color, hex: "#0a0a0a" }];
+
+                          const colorsList = availableColors.some(
+                            (c) =>
+                              c.name.trim().toLowerCase() ===
+                              (line.color || "").trim().toLowerCase(),
+                          )
+                            ? availableColors
+                            : [{ name: line.color, hex: "#18181b" }, ...availableColors];
+
+                          const activeColor = colorsList.find(
+                            (c) =>
+                              c.name.trim().toLowerCase() ===
+                              (line.color || "").trim().toLowerCase(),
+                          );
+                          const activeHex = activeColor?.hex || "#0a0a0a";
+
+                          const colorSizes =
+                            activeColor?.sizes && activeColor.sizes.length > 0
+                              ? activeColor.sizes
+                              : prod?.sizes && prod.sizes.length > 0
+                                ? prod.sizes
+                                : ["XS", "S", "M", "L", "XL", "XXL"];
+
+                          const sizesList = colorSizes.includes(line.size)
+                            ? colorSizes
+                            : [line.size, ...colorSizes];
+
+                          return (
+                            <li key={line.id} className="flex gap-3 py-4">
+                              <img
+                                src={line.image}
+                                alt={line.name}
+                                className="h-24 w-20 object-cover border border-white/10 shrink-0 rounded-sm"
+                              />
+                              <div className="min-w-0 flex-1 flex flex-col justify-between">
+                                <div>
+                                  <p className="truncate text-sm font-bold text-white">
+                                    {line.name}
+                                  </p>
+
+                                  {/* Interactive Color & Size Selectors */}
+                                  <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                                    {/* Themed Color Dropdown Button */}
+                                    <div className="group relative inline-flex items-center gap-2 rounded border border-white/20 bg-zinc-900/90 px-2.5 py-1.5 shadow-sm hover:border-white/60 hover:bg-zinc-850 active:scale-[0.98] transition-all cursor-pointer">
+                                      {/* Visible Themed UI (Pointer-events disabled so full button clicks select) */}
+                                      <div className="flex items-center gap-2 pointer-events-none">
+                                        <span
+                                          className="h-3 w-3 rounded-full border border-white/40 shadow-sm shrink-0"
+                                          style={{ backgroundColor: activeHex }}
+                                          aria-hidden="true"
+                                        />
+                                        <span className="text-xs font-semibold text-white tracking-wide">
+                                          {line.color}
+                                        </span>
+                                        <ChevronDown className="h-3.5 w-3.5 text-zinc-400 group-hover:text-white transition-colors" />
+                                      </div>
+
+                                      {/* Invisible full-coverage Select: triggers dropdown on click anywhere */}
+                                      <select
+                                        value={line.color}
+                                        onChange={(e) =>
+                                          updateLineVariant(line.id, {
+                                            color: e.target.value,
+                                          })
+                                        }
+                                        className="absolute inset-0 h-full w-full opacity-0 cursor-pointer z-10 appearance-none"
+                                        aria-label="Change product color"
+                                        title="Click anywhere to change color"
+                                      >
+                                        {colorsList.map((c) => (
+                                          <option
+                                            key={c.name}
+                                            value={c.name}
+                                            className="bg-zinc-950 text-white font-medium py-2"
+                                          >
+                                            {c.name}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </div>
+
+                                    {/* Themed Size Dropdown Button */}
+                                    <div className="group relative inline-flex items-center gap-2 rounded border border-white/20 bg-zinc-900/90 px-2.5 py-1.5 shadow-sm hover:border-white/60 hover:bg-zinc-850 active:scale-[0.98] transition-all cursor-pointer">
+                                      {/* Visible Themed UI (Pointer-events disabled so full button clicks select) */}
+                                      <div className="flex items-center gap-2 pointer-events-none">
+                                        <span className="text-[10px] uppercase font-mono tracking-wider text-zinc-400 font-bold">
+                                          SIZE
+                                        </span>
+                                        <span className="text-xs font-mono font-black text-white px-1.5 py-0.5 rounded bg-white/10 border border-white/20">
+                                          {line.size}
+                                        </span>
+                                        <ChevronDown className="h-3.5 w-3.5 text-zinc-400 group-hover:text-white transition-colors" />
+                                      </div>
+
+                                      {/* Invisible full-coverage Select: triggers dropdown on click anywhere */}
+                                      <select
+                                        value={line.size}
+                                        onChange={(e) =>
+                                          updateLineVariant(line.id, {
+                                            size: e.target.value,
+                                          })
+                                        }
+                                        className="absolute inset-0 h-full w-full opacity-0 cursor-pointer z-10 appearance-none"
+                                        aria-label="Change product size"
+                                        title="Click anywhere to change size"
+                                      >
+                                        {sizesList.map((s) => (
+                                          <option
+                                            key={s}
+                                            value={s}
+                                            className="bg-zinc-950 text-white font-mono py-2"
+                                          >
+                                            {s}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div className="mt-3 flex items-center gap-3">
+                                  <div className="flex items-center border border-white/20 bg-black">
+                                    <button
+                                      className="px-2.5 py-1 text-sm text-zinc-300 hover:text-white"
+                                      onClick={() => setQty(line.id, line.qty - 1)}
+                                      aria-label="Decrease quantity"
+                                    >
+                                      −
+                                    </button>
+                                    <span className="w-8 text-center text-sm font-bold text-white">
+                                      {line.qty}
+                                    </span>
+                                    <button
+                                      className="px-2.5 py-1 text-sm text-zinc-300 hover:text-white"
+                                      onClick={() => setQty(line.id, line.qty + 1)}
+                                      aria-label="Increase quantity"
+                                    >
+                                      +
+                                    </button>
+                                  </div>
+                                  <span className="text-sm font-bold text-white">
+                                    {formatPrice(line.price * line.qty)}
                                   </span>
                                   <button
-                                    className="px-2.5 py-1 text-sm text-zinc-300 hover:text-white"
-                                    onClick={() => setQty(line.id, line.qty + 1)}
-                                    aria-label="Increase quantity"
+                                    className="ml-auto text-zinc-400 hover:text-red-400 transition-colors"
+                                    aria-label="Remove item"
+                                    onClick={() => removeLine(line.id)}
                                   >
-                                    +
+                                    <Trash2 className="h-4 w-4" />
                                   </button>
                                 </div>
-                                <span className="text-sm font-bold text-white">
-                                  {formatPrice(line.price * line.qty)}
-                                </span>
-                                <button
-                                  className="ml-auto text-zinc-400 hover:text-red-400 transition-colors"
-                                  aria-label="Remove item"
-                                  onClick={() => removeLine(line.id)}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </button>
                               </div>
-                            </div>
-                          </li>
-                        ))}
+                            </li>
+                          );
+                        })}
                       </ul>
                     )}
                   </div>

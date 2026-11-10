@@ -46,6 +46,10 @@ type ShopState = {
   addToCart: (line: Omit<CartLine, "id">) => boolean;
   removeLine: (id: string) => Promise<void>;
   setQty: (id: string, qty: number) => Promise<void>;
+  updateLineVariant: (
+    id: string,
+    updates: { size?: string; color?: string },
+  ) => Promise<void>;
   toggleWishlist: (slug: string) => Promise<void>;
   cartCount: number;
   cartTotal: number;
@@ -396,6 +400,139 @@ export function ShopProvider({ children }: { children: ReactNode }) {
     [cart, currentUser, removeLine, syncCartToAdmin],
   );
 
+  // Update Color and Size for an item in the Bag
+  const updateLineVariant = useCallback(
+    async (id: string, updates: { size?: string; color?: string }) => {
+      const oldLine = cart.find((l) => l.id === id);
+      if (!oldLine) return;
+
+      const liveProducts = getLiveProducts();
+      const prod = liveProducts.find(
+        (p) => p.slug === oldLine.slug || p.id === oldLine.slug,
+      );
+      const productId = prod?.id || oldLine.slug;
+
+      const newColor = updates.color !== undefined ? updates.color : oldLine.color;
+      let newSize = updates.size !== undefined ? updates.size : oldLine.size;
+
+      // Find colorway details to resolve definitive photo and validate size availability
+      const matchedColor = prod?.colors?.find(
+        (c) => c.name.trim().toLowerCase() === newColor.trim().toLowerCase(),
+      );
+
+      const availableSizes =
+        matchedColor?.sizes && matchedColor.sizes.length > 0
+          ? matchedColor.sizes
+          : prod?.sizes && prod.sizes.length > 0
+            ? prod.sizes
+            : ["XS", "S", "M", "L", "XL", "XXL"];
+
+      // If chosen or current size is not valid for the new colorway, default to first valid size
+      if (!availableSizes.includes(newSize) && availableSizes.length > 0) {
+        newSize = availableSizes[0]!;
+      }
+
+      const definitiveImage =
+        matchedColor?.image ||
+        prod?.images?.[0] ||
+        oldLine.image ||
+        FALLBACK_PRODUCT_IMAGE;
+
+      const newLineId = `${oldLine.slug}-${newSize}-${newColor}`;
+
+      // If nothing actually changed, exit early
+      if (newLineId === oldLine.id && oldLine.image === definitiveImage) {
+        return;
+      }
+
+      // Check if another line with this variant already exists in the cart (to merge)
+      const existingMatch = cart.find(
+        (l) => l.id === newLineId && l.id !== oldLine.id,
+      );
+
+      let nextCart: CartLine[];
+      let targetFinalQty = oldLine.qty;
+
+      if (existingMatch) {
+        targetFinalQty = existingMatch.qty + oldLine.qty;
+        nextCart = cart
+          .filter((l) => l.id !== oldLine.id)
+          .map((l) =>
+            l.id === newLineId
+              ? { ...l, qty: targetFinalQty, image: definitiveImage }
+              : l,
+          );
+      } else {
+        nextCart = cart.map((l) =>
+          l.id === oldLine.id
+            ? {
+                ...l,
+                id: newLineId,
+                size: newSize,
+                color: newColor,
+                image: definitiveImage,
+              }
+            : l,
+        );
+      }
+
+      setCart(nextCart);
+      if (currentUser?.id) {
+        try {
+          localStorage.setItem(`dripcyclex.cart.${currentUser.id}`, JSON.stringify(nextCart));
+          localStorage.setItem("dripcyclex.cart", JSON.stringify(nextCart));
+        } catch {
+          /* ignore */
+        }
+      }
+      syncCartToAdmin(nextCart);
+      broadcastSync("CART_UPDATED", { count: nextCart.length });
+
+      if (isSupabaseConfigured && currentUser?.id) {
+        try {
+          // 1. Delete previous variant row
+          await supabase
+            .from("cart_items")
+            .delete()
+            .eq("user_id", currentUser.id)
+            .eq("product_id", productId)
+            .eq("size", oldLine.size)
+            .eq("color", oldLine.color);
+
+          // 2. Upsert new variant row
+          const payload = {
+            user_id: currentUser.id,
+            product_id: productId,
+            size: newSize,
+            color: newColor,
+            quantity: targetFinalQty,
+            image: definitiveImage,
+            updated_at: new Date().toISOString(),
+          };
+
+          let { error } = await supabase
+            .from("cart_items")
+            .upsert(payload, { onConflict: "user_id,product_id,size,color" });
+
+          if (error && error.message && error.message.toLowerCase().includes("image")) {
+            const { image: _ignored, ...payloadWithoutImage } = payload;
+            await supabase
+              .from("cart_items")
+              .upsert(payloadWithoutImage, { onConflict: "user_id,product_id,size,color" });
+          }
+        } catch (err) {
+          console.warn("Supabase cart_items updateLineVariant notice:", err);
+        }
+      }
+
+      toast.success("Bag Updated", {
+        description: `${oldLine.name} set to ${newColor} · Size ${newSize}`,
+        id: `cart-var-${newLineId}`,
+      });
+    },
+    [cart, currentUser, syncCartToAdmin],
+  );
+
   // Toggle Favorite / Wishlist (Stored in Supabase favorites table)
   const toggleWishlist = useCallback(
     async (slug: string) => {
@@ -458,12 +595,22 @@ export function ShopProvider({ children }: { children: ReactNode }) {
       addToCart,
       removeLine,
       setQty,
+      updateLineVariant,
       toggleWishlist,
       cartCount: cart.reduce((n, l) => n + l.qty, 0),
       cartTotal: cart.reduce((n, l) => n + l.qty * l.price, 0),
       reloadFromStorage,
     }),
-    [cart, wishlist, addToCart, removeLine, setQty, toggleWishlist, reloadFromStorage],
+    [
+      cart,
+      wishlist,
+      addToCart,
+      removeLine,
+      setQty,
+      updateLineVariant,
+      toggleWishlist,
+      reloadFromStorage,
+    ],
   );
 
   return <ShopContext.Provider value={value}>{children}</ShopContext.Provider>;
