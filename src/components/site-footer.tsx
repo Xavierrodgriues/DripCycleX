@@ -130,9 +130,22 @@ export function SiteFooter() {
           </div>
         </div>
 
-        <div className="mt-14 flex flex-col gap-3 border-t border-white/10 pt-6 text-xs text-zinc-500 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-14 flex flex-col gap-4 border-t border-white/10 pt-6 text-xs text-zinc-500 lg:flex-row lg:items-center lg:justify-between">
           <p>© {new Date().getFullYear()} DRIPCYCLEX Apparel Pvt. Ltd. All rights reserved.</p>
-          <p className="flex items-center gap-2">
+
+          <p className="flex items-center gap-1.5 text-zinc-400">
+            <span>Website Engineered & Developed by</span>
+            <a
+              href="https://www.instagram.com/rodgriuesxavier/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-bold text-white tracking-wide transition-colors hover:text-red-500 hover:underline underline-offset-4"
+            >
+              Xavier Rodgriues
+            </a>
+          </p>
+
+          <p className="flex flex-wrap items-center gap-2">
             <span>Engineered in India</span>
             <span>•</span>
             <span>8 Working Days Delivery</span>
