@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   Heart,
@@ -28,12 +28,14 @@ import { useRealtimeSync, type SyncPayload } from "@/lib/sync-channel";
 import { getCachedCategories, fetchCategories } from "@/lib/taxonomy-service";
 import { useShop } from "@/lib/shop-store";
 import { useAuth } from "@/lib/auth-store";
+import { useSmoothScroll } from "@/components/smooth-scroll-provider";
 import { initiateWhatsAppCheckout } from "@/lib/whatsapp";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 export function SiteHeader() {
   const [scrolled, setScrolled] = useState(false);
+  const [navHidden, setNavHidden] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -50,15 +52,91 @@ export function SiteHeader() {
     toggleWishlist,
   } = useShop();
   const { currentUser } = useAuth();
+  const { scrollDirection } = useSmoothScroll();
+
+  // Listen to SmoothScrollProvider direction updates
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const y = window.scrollY;
+    if (y <= 60) {
+      setNavHidden(false);
+    } else if (scrollDirection === "down" && y > 80) {
+      setNavHidden(true);
+    } else if (scrollDirection === "up") {
+      setNavHidden(false);
+    }
+  }, [scrollDirection]);
 
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 12);
-    onScroll();
+    let lastY = typeof window !== "undefined" ? window.scrollY : 0;
+    let accumulatedUp = 0;
+    let accumulatedDown = 0;
+
+    const onScroll = () => {
+      const currentY = window.scrollY;
+      setScrolled(currentY > 12);
+
+      // Always show navbar near the top of the page
+      if (currentY <= 60) {
+        setNavHidden(false);
+        accumulatedUp = 0;
+        accumulatedDown = 0;
+        lastY = currentY;
+        return;
+      }
+
+      const diff = currentY - lastY;
+
+      if (diff > 0) {
+        // Scrolling down
+        accumulatedDown += diff;
+        accumulatedUp = 0;
+
+        // Hide when scrolled down at least 15px past top threshold
+        if (accumulatedDown > 15 && currentY > 80) {
+          setNavHidden(true);
+        }
+      } else if (diff < 0) {
+        // Scrolling up
+        accumulatedUp += Math.abs(diff);
+        accumulatedDown = 0;
+
+        // Immediately slide down when user scrolls up even 6px
+        if (accumulatedUp > 6) {
+          setNavHidden(false);
+        }
+      }
+
+      lastY = currentY;
+    };
+
+    // Instant wheel detection for ultra-responsive slide-down on trackpad / mousewheel
+    const onWheel = (e: WheelEvent) => {
+      if (e.deltaY < -4) {
+        // Upward scroll intent -> immediately reveal navbar
+        setNavHidden(false);
+        accumulatedUp = 0;
+      } else if (e.deltaY > 15 && window.scrollY > 80) {
+        // Downward scroll intent -> hide navbar
+        setNavHidden(true);
+        accumulatedDown = 0;
+      }
+    };
+
     window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
+    window.addEventListener("wheel", onWheel, { passive: true });
+    onScroll();
+
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("wheel", onWheel);
+    };
   }, []);
 
-  useEffect(() => setMenuOpen(false), [pathname]);
+  useEffect(() => {
+    setMenuOpen(false);
+    setNavHidden(false);
+  }, [pathname]);
 
   const [liveProducts, setLiveProducts] = useState(getLiveProducts);
   const [categoriesList, setCategoriesList] = useState<CategoryItem[]>(getCachedCategories);
@@ -124,17 +202,26 @@ export function SiteHeader() {
 
   return (
     <>
-      <div className="bg-black border-b border-white/10 py-2 text-center text-[10px] sm:text-[11px] font-bold tracking-[0.16em] sm:tracking-[0.25em] text-zinc-400 uppercase px-3 truncate">
-        TRINITY DROP 01 · 8 WORKING DAYS DELIVERY · LOW DELIVERY FEE ·{" "}
-        <span className="text-white">STRICTLY LIMITED PIECES</span>
-      </div>
-
-      <header
+      {/* Fixed Header Bar with hardware-accelerated slide up/down animation */}
+      <div
         className={cn(
-          "sticky top-0 z-50 border-b bg-black/90 backdrop-blur-md transition-all duration-300",
-          scrolled ? "border-white/15 shadow-[0_8px_30px_rgba(0,0,0,0.8)]" : "border-white/5",
+          "fixed top-0 left-0 right-0 z-50 w-full transition-transform duration-300 ease-in-out will-change-transform",
+          navHidden && !menuOpen && !cartOpen
+            ? "-translate-y-full"
+            : "translate-y-0",
         )}
       >
+        <div className="bg-black border-b border-white/10 py-2 text-center text-[10px] sm:text-[11px] font-bold tracking-[0.16em] sm:tracking-[0.25em] text-zinc-400 uppercase px-3 truncate">
+          TRINITY DROP 01 · 8 WORKING DAYS DELIVERY · LOW DELIVERY FEE ·{" "}
+          <span className="text-white">STRICTLY LIMITED PIECES</span>
+        </div>
+
+        <header
+          className={cn(
+            "w-full border-b bg-black/90 backdrop-blur-md transition-colors duration-300",
+            scrolled ? "border-white/15 shadow-[0_8px_30px_rgba(0,0,0,0.8)]" : "border-white/5",
+          )}
+        >
         <div className="mx-auto grid max-w-[1400px] grid-cols-[auto_1fr_auto] items-center gap-3 sm:gap-4 px-4 py-2.5 sm:px-8 lg:px-12">
           {/* Brand Logo & Name */}
           <Link
@@ -676,6 +763,10 @@ export function SiteHeader() {
           </div>
         </div>
       </header>
+      </div>
+
+      {/* Normal flow spacer to prevent layout shift under fixed header */}
+      <div className="h-[96px] sm:h-[105px] lg:h-[114px] w-full shrink-0" aria-hidden="true" />
 
       {/* Mobile bottom nav */}
       <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 border-t border-white/10 bg-black/95 backdrop-blur-md lg:hidden">

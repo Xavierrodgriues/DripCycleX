@@ -9,6 +9,11 @@ Allow: /contact
 Allow: /product/
 Allow: /products/
 Allow: /assets/
+Allow: /favicon.ico
+Allow: /favicon.png
+Allow: /favicon-*.png
+Allow: /apple-touch-icon.png
+Allow: /site.webmanifest
 Allow: /dripcyclex-logo.jpg
 Allow: /og-cover.jpg
 
@@ -26,6 +31,16 @@ Disallow: /admin
 Disallow: /admin/
 Disallow: /auth
 Disallow: /auth/
+
+# Googlebot-Image specific rules (ensures favicon and product images are indexed)
+User-agent: Googlebot-Image
+Allow: /
+Allow: /favicon.ico
+Allow: /favicon.png
+Allow: /favicon-*.png
+Allow: /apple-touch-icon.png
+Allow: /assets/
+Allow: /products/
 
 # Bingbot specific rules
 User-agent: Bingbot
